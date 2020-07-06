@@ -198,9 +198,9 @@ frame_types = {
 
 # 3.3.1.7 Valid frame
 def read_frame(stream, previous_frame):
-    t, v = next(stream)
+    t, v = stream.next()
     while v == 0:
-        t, v = next(stream)
+        t, v = stream.next()
 
     # 3.3.1.4 Start Bit
     start = t
@@ -251,33 +251,51 @@ bit_names = {
 def read_bit(stream, start, t, v):
     tp, vp = t, v
     while t < start + BT / 4:
-        tp, vp, t, v = t, v, *next(stream)
+        tp, vp, t, v = t, v, *stream.next()
     v1 = vp
     while t < start + 3 * BT / 4:
-        tp, vp, t, v = t, v, *next(stream)
+        tp, vp, t, v = t, v, *stream.next()
     v2 = vp
     while t < start + BT:
-        t, v = next(stream)
+        t, v = stream.next()
     return bit_names[(v1, v2)], t, v
 
-def read_events_bin():
-    with open(sys.argv[1], 'rb') as f:
-        i = 0
-        while True:
-            sample = int.from_bytes(f.read(1), "little")
-            v = 0 if sample == 0x02 else 1 # señal invertida
-            t = i / SAMPLE_RATE
+class Stream:
+    def __init__(self):
+        self.f = open(sys.argv[1], 'rb')
+        self.sample_i = 0
+        self.block = None
+        self.block_len = 0
+        self.block_i = 0
 
-            yield t, v
-            if i % SAMPLE_RATE == 0:
-                sys.stderr.write(f'{t=}\n')
-            i += 1
+    def next_block(self):
+        self.block = self.f.read(4096)
+        self.block_len = len(self.block)
+        self.block_i = 0
+
+    def next_sample(self):
+        if self.block == None or self.block_i >= self.block_len:
+            self.next_block()
+        b = self.block[self.block_i]
+        self.block_i += 1
+        return b
+
+    def next(self):
+        sample = self.next_sample()
+        v = 0 if sample == 0x02 else 1 # señal invertida
+        t = self.sample_i / SAMPLE_RATE
+
+        if self.sample_i % SAMPLE_RATE == 0:
+            sys.stderr.write(f'{t=}\n')
+        self.sample_i += 1
+
+        return t, v
 
 def main():
     n = int(sys.argv[2])
 
-    stream = read_events_bin()
-    t, v = next(stream)
+    stream = Stream()
+    t, v = stream.next()
     assert v == 0
     previous_frame = None
     while True:
