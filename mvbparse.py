@@ -2,9 +2,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 import sys
+import struct
 
-ns = 1e-9
-BT = 666.7 * ns
+BT = 666.7e-9
+SAMPLE_RATE = 12000000
 
 def to_int(bits):
     return eval('0b' + bits)
@@ -247,21 +248,24 @@ def read_bit(stream, start, t, v):
         t, v = next(stream)
     return bit_names[(v1, v2)], t, v
 
-def read_events_csv():
-    with open(sys.argv[1], 'r') as f:
-        next(f)
+def read_events_bin():
+    with open(sys.argv[1], 'rb') as f:
+        def read(format):
+            return struct.unpack(format, f.read(struct.calcsize(format)))
+
+        i = 0
         while True:
-            line = next(f, None)
-            if not line:
-                break
-            t, v = line.strip().split(',')
-            t = float(t.strip())
-            v = int(v.strip())
-            # print(1 - v, t)
-            yield t, 1 - v # señal invertida
+            sample = read('B')[0]
+            v = 0 if sample == 0x02 else 1 # señal invertida
+            t = i / SAMPLE_RATE
+
+            yield t, v
+            if i % SAMPLE_RATE == 0:
+                sys.stderr.write(f'{t=}\n')
+            i += 1
 
 def read():
-    stream = read_events_csv()
+    stream = read_events_bin()
     t, v = next(stream)
     assert v == 0
     previous_frame = None
@@ -269,7 +273,7 @@ def read():
         try:
             t, previous_frame = read_frame(stream, previous_frame)
         except AssertionError as e:
-            print(f"AssertionError around {t=}: {str(e)}")
+            sys.stderr.write(f"AssertionError around {t=}: {str(e)}\n")
             pass
 
 try:
