@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
+import sys
 
 ns = 1e-9
 BT = 666.7 * ns
@@ -246,8 +247,8 @@ def read_bit(stream, start, t, v):
         t, v = next(stream)
     return bit_names[(v1, v2)], t, v
 
-def read_events():
-    with open('11-full.csv', 'r') as f:
+def read_events_csv():
+    with open(sys.argv[1], 'r') as f:
         next(f)
         while True:
             line = next(f, None)
@@ -260,7 +261,7 @@ def read_events():
             yield t, 1 - v # señal invertida
 
 def read():
-    stream = read_events()
+    stream = read_events_csv()
     t, v = next(stream)
     assert v == 0
     previous_frame = None
