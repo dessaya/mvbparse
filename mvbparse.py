@@ -83,6 +83,9 @@ class MasterFrame:
     fcode: FCode
     address: int
 
+    def __str__(self):
+        return f'MASTER {self.fcode.master_request} -> {self.address}'
+
 def parse_master_frame(data, previous_frame):
     # 3.4.1.1 Master Frame Format
     assert len(data) == 3
@@ -96,6 +99,9 @@ def parse_master_frame(data, previous_frame):
 @dataclass
 class SlaveFrame:
     data: list[str]
+
+    def __str__(self):
+        return f'  SLAVE {len(self.data)} bytes'
 
 # 3.4.1.2 Slave Frame Format
 slave_formats = {
@@ -122,6 +128,10 @@ class ProcessDataResponse:
     logical_address: int
     data: list[int]
 
+    def __str__(self):
+        return f'  SLAVE ProcessDataResponse {len(self.data)} bytes'
+
+
 # 3.5.4.1 Process Data telegram
 def parse_slave_frame_process_data(data: list[str], master_frame: MasterFrame):
     return ProcessDataResponse(master_frame.address, data)
@@ -130,6 +140,9 @@ def parse_slave_frame_process_data(data: list[str], master_frame: MasterFrame):
 class MessageDataResponse:
     device_address: int
     data: list[int]
+
+    def __str__(self):
+        return f'  SLAVE MessageDataResponse {len(self.data)} bytes'
 
 # 3.5.4.2 Message Data
 def parse_slave_frame_message_data(data: list[str], master_frame: MasterFrame):
@@ -209,7 +222,6 @@ def read_frame(stream, previous_frame):
             data.append(''.join(byte))
         i += 1
     frame = frame_parser(data, previous_frame)
-    print(f'{start:.6f} {frame=}')
     return start, frame
 
 def read_byte(stream, start, t, v, isStartDelimiter):
@@ -250,12 +262,9 @@ def read_bit(stream, start, t, v):
 
 def read_events_bin():
     with open(sys.argv[1], 'rb') as f:
-        def read(format):
-            return struct.unpack(format, f.read(struct.calcsize(format)))
-
         i = 0
         while True:
-            sample = read('B')[0]
+            sample = int.from_bytes(f.read(1), "little")
             v = 0 if sample == 0x02 else 1 # señal invertida
             t = i / SAMPLE_RATE
 
@@ -264,19 +273,25 @@ def read_events_bin():
                 sys.stderr.write(f'{t=}\n')
             i += 1
 
-def read():
+def main():
+    n = int(sys.argv[2])
+
     stream = read_events_bin()
     t, v = next(stream)
     assert v == 0
     previous_frame = None
     while True:
         try:
-            t, previous_frame = read_frame(stream, previous_frame)
+            t, frame = read_frame(stream, previous_frame)
+            print(f'{t=:.6f} {str(frame)}')
+            previous_frame = frame
+            n -= 1
+            if n == 0:
+                break
         except AssertionError as e:
             sys.stderr.write(f"AssertionError around {t=}: {str(e)}\n")
-            pass
-
+            previous_frame = None
 try:
-    read()
+    main()
 except StopIteration:
     pass
