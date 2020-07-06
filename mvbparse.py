@@ -249,15 +249,9 @@ bit_names = {
 }
 
 def read_bit(stream, start, t, v):
-    tp, vp = t, v
-    while t < start + BT / 4:
-        tp, vp, t, v = t, v, *stream.next()
-    v1 = vp
-    while t < start + 3 * BT / 4:
-        tp, vp, t, v = t, v, *stream.next()
-    v2 = vp
-    while t < start + BT:
-        t, v = stream.next()
+    t, v1 = stream.next(start + BT / 4)
+    t, v2 = stream.next(start + 3 * BT / 4)
+    t, v = stream.next(start + BT)
     return bit_names[(v1, v2)], t, v
 
 class Stream:
@@ -270,17 +264,20 @@ class Stream:
 
     def next_block(self):
         self.block = self.f.read(4096)
+        self.block_i += self.block_len
         self.block_len = len(self.block)
-        self.block_i = 0
 
     def next_sample(self):
-        if self.block == None or self.block_i >= self.block_len:
+        while self.block == None or self.sample_i >= self.block_i + self.block_len:
             self.next_block()
-        b = self.block[self.block_i]
-        self.block_i += 1
+        b = self.block[self.sample_i - self.block_i]
         return b
 
-    def next(self):
+    def next(self, until=None):
+        if until is not None:
+            i = int(until * SAMPLE_RATE)
+            assert i >= self.sample_i
+            self.sample_i = i
         sample = self.next_sample()
         v = 0 if sample == 0x02 else 1 # señal invertida
         t = self.sample_i / SAMPLE_RATE
