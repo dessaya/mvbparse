@@ -198,9 +198,7 @@ frame_types = {
 
 # 3.3.1.7 Valid frame
 def read_frame(stream, previous_frame):
-    t, v = stream.next()
-    while v == 0:
-        t, v = stream.next()
+    t, v = stream.find(1)
 
     # 3.3.1.4 Start Bit
     start = t
@@ -249,9 +247,9 @@ bit_names = {
 }
 
 def read_bit(stream, start, t, v):
-    t, v1 = stream.next(start + BT / 4)
-    t, v2 = stream.next(start + 3 * BT / 4)
-    t, v = stream.next(start + BT)
+    t, v1 = stream.skip_until(start + BT / 4)
+    t, v2 = stream.skip_until(start + 3 * BT / 4)
+    t, v = stream.skip_until(start + BT)
     return bit_names[(v1, v2)], t, v
 
 class Stream:
@@ -267,17 +265,31 @@ class Stream:
         self.block_i += self.block_len
         self.block_len = len(self.block)
 
-    def next_sample(self):
+    def check_block(self):
         while self.block == None or self.sample_i >= self.block_i + self.block_len:
             self.next_block()
+
+    def next_sample(self):
+        self.check_block()
         b = self.block[self.sample_i - self.block_i]
         return b
 
+    def skip_until(self, until):
+        i = int(until * SAMPLE_RATE)
+        assert i >= self.sample_i
+        self.sample_i = i
+        return self.next()
+
+    def find(self, v):
+        self.check_block()
+        while True:
+            i = self.block.find(b'\0' if v else b'\2', max(0, self.sample_i - self.block_i))
+            if i > 0:
+                self.sample_i = self.block_i + i
+                return self.next()
+            self.next_block()
+
     def next(self, until=None):
-        if until is not None:
-            i = int(until * SAMPLE_RATE)
-            assert i >= self.sample_i
-            self.sample_i = i
         sample = self.next_sample()
         v = 0 if sample == 0x02 else 1 # señal invertida
         t = self.sample_i / SAMPLE_RATE
