@@ -52,6 +52,7 @@ class SlaveFrameDestination(Enum):
 
 @dataclass
 class FCode:
+    n: int
     address_type: AddressType
     master_request: MasterRequest
     slave_frame_source: SlaveFrameSource
@@ -60,22 +61,22 @@ class FCode:
     slave_frame_destination: SlaveFrameDestination
 
 fcodes = {
-    0: FCode(AddressType.LOGICAL, MasterRequest.PROCESS_DATA, SlaveFrameSource.SUBSCRIBED_SOURCE, 16, SlaveResponse.PROCESS_DATA, SlaveFrameDestination.SUBSCRIBED_SINKS),
-    1: FCode(AddressType.LOGICAL, MasterRequest.PROCESS_DATA, SlaveFrameSource.SUBSCRIBED_SOURCE, 32, SlaveResponse.PROCESS_DATA, SlaveFrameDestination.SUBSCRIBED_SINKS),
-    2: FCode(AddressType.LOGICAL, MasterRequest.PROCESS_DATA, SlaveFrameSource.SUBSCRIBED_SOURCE, 64, SlaveResponse.PROCESS_DATA, SlaveFrameDestination.SUBSCRIBED_SINKS),
-    3: FCode(AddressType.LOGICAL, MasterRequest.PROCESS_DATA, SlaveFrameSource.SUBSCRIBED_SOURCE, 128, SlaveResponse.PROCESS_DATA, SlaveFrameDestination.SUBSCRIBED_SINKS),
-    4: FCode(AddressType.LOGICAL, MasterRequest.PROCESS_DATA, SlaveFrameSource.SUBSCRIBED_SOURCE, 256, SlaveResponse.PROCESS_DATA, SlaveFrameDestination.SUBSCRIBED_SINKS),
-    5: FCode(AddressType.NONE, MasterRequest.RESERVED, SlaveFrameSource.NONE, 0, SlaveResponse.NONE, SlaveFrameDestination.NONE),
-    6: FCode(AddressType.NONE, MasterRequest.RESERVED, SlaveFrameSource.NONE, 0, SlaveResponse.NONE, SlaveFrameDestination.NONE),
-    7: FCode(AddressType.NONE, MasterRequest.RESERVED, SlaveFrameSource.NONE, 0, SlaveResponse.NONE, SlaveFrameDestination.NONE),
-    8: FCode(AddressType.DEVICE, MasterRequest.MASTERSHIP_TRANSFER, SlaveFrameSource.PROPOSED_MASTER, 16, SlaveResponse.MASTERSHIP_TRANSFER, SlaveFrameDestination.MASTER),
-    9: FCode(AddressType.ALL_DEVICES, MasterRequest.GENERAL_EVENT, SlaveFrameSource.DEVICE_GROUP, 16, SlaveResponse.EVENT_IDENTIFIER, SlaveFrameDestination.MASTER),
-    10: FCode(AddressType.DEVICE, MasterRequest.RESERVED, SlaveFrameSource.NONE, 0, SlaveResponse.NONE, SlaveFrameDestination.NONE),
-    11: FCode(AddressType.DEVICE, MasterRequest.RESERVED, SlaveFrameSource.NONE, 0, SlaveResponse.NONE, SlaveFrameDestination.NONE),
-    12: FCode(AddressType.DEVICE, MasterRequest.MESSAGE_DATA, SlaveFrameSource.SINGLE, 256, SlaveResponse.MESSAGE_DATA, SlaveFrameDestination.SELECTED_DEVICES),
-    13: FCode(AddressType.DEVICE_GROUP, MasterRequest.GROUP_EVENT, SlaveFrameSource.DEVICE_GROUP, 16, SlaveResponse.EVENT_IDENTIFIER, SlaveFrameDestination.MASTER),
-    14: FCode(AddressType.DEVICE, MasterRequest.SINGLE_EVENT, SlaveFrameSource.SINGLE, 16, SlaveResponse.EVENT_IDENTIFIER, SlaveFrameDestination.MASTER),
-    15: FCode(AddressType.DEVICE, MasterRequest.DEVICE_STATUS, SlaveFrameSource.SINGLE, 16, SlaveResponse.DEVICE_STATUS, SlaveFrameDestination.MASTER_OR_MONITOR),
+    0: FCode(0, AddressType.LOGICAL, MasterRequest.PROCESS_DATA, SlaveFrameSource.SUBSCRIBED_SOURCE, 16, SlaveResponse.PROCESS_DATA, SlaveFrameDestination.SUBSCRIBED_SINKS),
+    1: FCode(1, AddressType.LOGICAL, MasterRequest.PROCESS_DATA, SlaveFrameSource.SUBSCRIBED_SOURCE, 32, SlaveResponse.PROCESS_DATA, SlaveFrameDestination.SUBSCRIBED_SINKS),
+    2: FCode(2, AddressType.LOGICAL, MasterRequest.PROCESS_DATA, SlaveFrameSource.SUBSCRIBED_SOURCE, 64, SlaveResponse.PROCESS_DATA, SlaveFrameDestination.SUBSCRIBED_SINKS),
+    3: FCode(3, AddressType.LOGICAL, MasterRequest.PROCESS_DATA, SlaveFrameSource.SUBSCRIBED_SOURCE, 128, SlaveResponse.PROCESS_DATA, SlaveFrameDestination.SUBSCRIBED_SINKS),
+    4: FCode(4, AddressType.LOGICAL, MasterRequest.PROCESS_DATA, SlaveFrameSource.SUBSCRIBED_SOURCE, 256, SlaveResponse.PROCESS_DATA, SlaveFrameDestination.SUBSCRIBED_SINKS),
+    5: FCode(5, AddressType.NONE, MasterRequest.RESERVED, SlaveFrameSource.NONE, 0, SlaveResponse.NONE, SlaveFrameDestination.NONE),
+    6: FCode(6, AddressType.NONE, MasterRequest.RESERVED, SlaveFrameSource.NONE, 0, SlaveResponse.NONE, SlaveFrameDestination.NONE),
+    7: FCode(7, AddressType.NONE, MasterRequest.RESERVED, SlaveFrameSource.NONE, 0, SlaveResponse.NONE, SlaveFrameDestination.NONE),
+    8: FCode(8, AddressType.DEVICE, MasterRequest.MASTERSHIP_TRANSFER, SlaveFrameSource.PROPOSED_MASTER, 16, SlaveResponse.MASTERSHIP_TRANSFER, SlaveFrameDestination.MASTER),
+    9: FCode(9, AddressType.ALL_DEVICES, MasterRequest.GENERAL_EVENT, SlaveFrameSource.DEVICE_GROUP, 16, SlaveResponse.EVENT_IDENTIFIER, SlaveFrameDestination.MASTER),
+    10: FCode(10, AddressType.DEVICE, MasterRequest.RESERVED, SlaveFrameSource.NONE, 0, SlaveResponse.NONE, SlaveFrameDestination.NONE),
+    11: FCode(11, AddressType.DEVICE, MasterRequest.RESERVED, SlaveFrameSource.NONE, 0, SlaveResponse.NONE, SlaveFrameDestination.NONE),
+    12: FCode(12, AddressType.DEVICE, MasterRequest.MESSAGE_DATA, SlaveFrameSource.SINGLE, 256, SlaveResponse.MESSAGE_DATA, SlaveFrameDestination.SELECTED_DEVICES),
+    13: FCode(13, AddressType.DEVICE_GROUP, MasterRequest.GROUP_EVENT, SlaveFrameSource.DEVICE_GROUP, 16, SlaveResponse.EVENT_IDENTIFIER, SlaveFrameDestination.MASTER),
+    14: FCode(14, AddressType.DEVICE, MasterRequest.SINGLE_EVENT, SlaveFrameSource.SINGLE, 16, SlaveResponse.EVENT_IDENTIFIER, SlaveFrameDestination.MASTER),
+    15: FCode(15, AddressType.DEVICE, MasterRequest.DEVICE_STATUS, SlaveFrameSource.SINGLE, 16, SlaveResponse.DEVICE_STATUS, SlaveFrameDestination.MASTER_OR_MONITOR),
 }
 
 @dataclass
@@ -83,8 +84,10 @@ class MasterFrame:
     fcode: FCode
     address: int
 
+    def is_master(self): return True
+
     def __str__(self):
-        return f'MASTER {self.fcode.master_request} -> {self.address}'
+        return f'MASTER ({self.fcode.n}) {self.fcode.master_request} -> {self.address}'
 
 def parse_master_frame(data, previous_frame):
     # 3.4.1.1 Master Frame Format
@@ -99,6 +102,8 @@ def parse_master_frame(data, previous_frame):
 @dataclass
 class SlaveFrame:
     data: list[str]
+
+    def is_master(self): return False
 
     def __str__(self):
         return f'  SLAVE {len(self.data)} bytes'
@@ -128,6 +133,8 @@ class ProcessDataResponse:
     logical_address: int
     data: list[int]
 
+    def is_master(self): return False
+
     def __str__(self):
         return f'  SLAVE ProcessDataResponse {len(self.data)} bytes'
 
@@ -141,6 +148,8 @@ class MessageDataResponse:
     device_address: int
     data: list[int]
 
+    def is_master(self): return False
+
     def __str__(self):
         return f'  SLAVE MessageDataResponse {len(self.data)} bytes'
 
@@ -148,10 +157,41 @@ class MessageDataResponse:
 def parse_slave_frame_message_data(data: list[str], master_frame: MasterFrame):
     return MessageDataResponse(master_frame.address, data)
 
+@dataclass
+class DeviceStatusResponse:
+    device_address: int
+    SP: str
+    BA: str
+    GW: str
+    MD: str
+    class_specific: str
+    LAT: str
+    RLD: str
+    SSD: str
+    SDD: str
+    ERD: str
+    FRC: str
+    DNR: str
+    SER: str
+
+    def is_master(self): return False
+
+    def __str__(self):
+        return f'  SLAVE {repr(self)}'
+
+# 3.6.4.1.1 Device_Status
+def parse_slave_frame_device_status(data: list[str], master_frame: MasterFrame):
+    assert len(data) == 2
+    SP, BA, GW, MD = data[0][:4]
+    class_specific = data[0][4:]
+    LAT, RLD, SSD, SDD, ERD, FRC, DNR, SER = data[1]
+    return DeviceStatusResponse(master_frame.address, SP, BA, GW, MD, class_specific, LAT, RLD, SSD, SDD, ERD, FRC, DNR, SER)
+
 # 3.5.4 Telegram types
 slave_responses = {
     MasterRequest.PROCESS_DATA: parse_slave_frame_process_data,
     MasterRequest.MESSAGE_DATA: parse_slave_frame_message_data,
+    MasterRequest.DEVICE_STATUS: parse_slave_frame_device_status,
 }
 
 
@@ -310,7 +350,8 @@ def main():
     while True:
         try:
             t, frame = read_frame(stream, previous_frame)
-            print(f'{t=:.6f} {str(frame)}')
+            if previous_frame and previous_frame.is_master():
+                print(f'{t=:.6f} :: {str(previous_frame)} :: {str(frame)}')
             previous_frame = frame
             n -= 1
             if n == 0:
