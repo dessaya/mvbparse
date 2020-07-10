@@ -116,7 +116,7 @@ class SlaveFrame:
     def is_master(self): return False
 
     def __str__(self):
-        return f'  SLAVE {len(self.data)} bytes'
+        return f'SLAVE {len(self.data)} bytes'
 
 # 3.4.1.2 Slave Frame Format
 slave_formats = {
@@ -146,7 +146,7 @@ class ProcessDataResponse:
     def is_master(self): return False
 
     def __str__(self):
-        return f'  SLAVE ProcessDataResponse {len(self.data)} bytes'
+        return f'SLAVE ProcessDataResponse {len(self.data)} bytes'
 
 
 # 3.5.4.1 Process Data telegram
@@ -161,7 +161,7 @@ class MessageDataResponse:
     def is_master(self): return False
 
     def __str__(self):
-        return f'  SLAVE MessageDataResponse {len(self.data)} bytes'
+        return f'SLAVE MessageDataResponse {len(self.data)} bytes'
 
 # 3.5.4.2 Message Data
 def parse_slave_frame_message_data(data: list[str], master_frame: MasterFrame):
@@ -187,7 +187,7 @@ class DeviceStatusResponse:
     def is_master(self): return False
 
     def __str__(self):
-        return f'  SLAVE {repr(self)}'
+        return f'SLAVE {repr(self)}'
 
 # 3.6.4.1.1 Device_Status
 def parse_slave_frame_device_status(data: list[str], master_frame: MasterFrame):
@@ -361,7 +361,10 @@ def main():
         try:
             t, frame = read_frame(stream, previous_frame)
             if previous_frame and previous_frame.is_master():
-                print(f'{t=:.6f} :: {str(previous_frame)} :: {str(frame)}')
+                if frame.is_master():
+                    print(f'{t=:.6f} :: {str(previous_frame)} :: (no slave frame)')
+                else:
+                    print(f'{t=:.6f} :: {str(previous_frame)} :: {str(frame)}')
             previous_frame = frame
             n -= 1
             if n == 0:
