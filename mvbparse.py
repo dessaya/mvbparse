@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from enum import Enum
+from enum import Enum, unique
 import sys
 import struct
 
@@ -11,6 +11,7 @@ def to_int(bits):
     return eval('0b' + bits)
 
 # Table 53
+@unique
 class AddressType(Enum):
     NONE = 0
     LOGICAL = 1
@@ -18,6 +19,7 @@ class AddressType(Enum):
     ALL_DEVICES = 3
     DEVICE_GROUP = 4
 
+@unique
 class MasterRequest(Enum):
     PROCESS_DATA = 0
     RESERVED = 1
@@ -28,6 +30,7 @@ class MasterRequest(Enum):
     SINGLE_EVENT = 6
     DEVICE_STATUS = 7
 
+@unique
 class SlaveFrameSource(Enum):
     NONE = 0
     SINGLE = 1
@@ -35,6 +38,7 @@ class SlaveFrameSource(Enum):
     DEVICE_GROUP = 3
     SUBSCRIBED_SOURCE = 4
 
+@unique
 class SlaveResponse(Enum):
     NONE = 0
     PROCESS_DATA = 1
@@ -43,6 +47,7 @@ class SlaveResponse(Enum):
     MESSAGE_DATA = 4
     DEVICE_STATUS = 5
 
+@unique
 class SlaveFrameDestination(Enum):
     NONE = 0
     SUBSCRIBED_SINKS = 1
@@ -87,7 +92,12 @@ class MasterFrame:
     def is_master(self): return True
 
     def __str__(self):
-        return f'MASTER ({self.fcode.n}) {self.fcode.master_request} -> {self.address}'
+        return f'MASTER [f_code={self.fcode.n} {self.fcode.master_request.name}] -> {self.describe_address()}'
+
+    def describe_address(self):
+        if self.fcode.address_type == AddressType.LOGICAL:
+            return f'[port 0x{self.address:03x}]'
+        return f'[physical 0x{self.address:03x}]'
 
 def parse_master_frame(data, previous_frame):
     # 3.4.1.1 Master Frame Format
