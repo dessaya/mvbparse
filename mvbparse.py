@@ -101,7 +101,7 @@ class MasterFrame:
 
 def parse_master_frame(data, previous_frame):
     # 3.4.1.1 Master Frame Format
-    assert len(data) == 3
+    assert len(data) == 3, "master frame: len(data) == 3"
     check_crc(data[:2], data[2])
 
     # 3.5.2.1 Master Frame format
@@ -132,7 +132,7 @@ def parse_slave_frame(data: list[str], master_frame: MasterFrame):
     for a, crc in slave_formats[len(data)]:
         check_crc(data[a:crc], data[crc])
         data_.extend(data[a:crc])
-    assert len(data_) == master_frame.fcode.slave_frame_size / 8
+    assert len(data_) == master_frame.fcode.slave_frame_size / 8, "slave frame: invalid data length"
     parser = slave_responses.get(master_frame.fcode.master_request, None)
     if parser:
         return parser(data_, master_frame)
@@ -192,7 +192,7 @@ class DeviceStatusResponse:
 
 # 3.6.4.1.1 Device_Status
 def parse_slave_frame_device_status(data: list[str], master_frame: MasterFrame):
-    assert len(data) == 2
+    assert len(data) == 2, "parse_slave_frame_device_status len data"
     SP, BA, GW, MD = data[0][:4]
     class_specific = data[0][4:]
     LAT, RLD, SSD, SDD, ERD, FRC, DNR, SER = data[1]
@@ -208,7 +208,7 @@ slave_responses = {
 
 # 3.4.1.3 Check Sequence
 def check_crc(data, crc):
-    assert len(data) in (2, 4, 8)
+    assert len(data) in (2, 4, 8), "data length"
     # TODO not working
     return
     print(f'2 {data=}')
@@ -222,7 +222,7 @@ def check_crc(data, crc):
     print(f'8 {data=}')
     data = ''.join('1' if b == '0' else '0' for b in data)
     print(f'9 {data=} {crc=}')
-    assert data == crc
+    assert data == crc, "CRC"
 
 def divide_mod(data, div):
     data = data + '0' * 7
@@ -254,7 +254,7 @@ def read_frame(stream, previous_frame):
     # 3.3.1.4 Start Bit
     start = t
     start_bit, t, v = read_bit(stream, start, t, v)
-    assert(start_bit == '1')
+    assert(start_bit == '1'), "start bit should be 1"
     i = 0
     data = []
     while True:
@@ -265,7 +265,7 @@ def read_frame(stream, previous_frame):
         if isStartDelimiter:
             # 3.3.1.5 Start Delimiter
             start_delimiter = tuple(byte)
-            assert start_delimiter in frame_types
+            assert start_delimiter in frame_types, "start_delimiter"
             frame_parser = frame_types[start_delimiter]
         else:
             data.append(''.join(byte))
@@ -279,10 +279,10 @@ def read_byte(stream, start, t, v, isStartDelimiter):
         bit, t, v = read_bit(stream, start + i * BT, t, v)
         if not isStartDelimiter and bit != '1' and bit != '0':
             # 3.3.1.6 End Delimiter
-            assert i == 0
-            assert bit == 'NL'
+            assert i == 0, "unexpected end delimiter"
+            assert bit == 'NL', "end delimiter: expected NL"
             bit, t, v = read_bit(stream, start + (i + 1) * BT, t, v)
-            assert(bit == 'NH')
+            assert bit == 'NH', "end delimiter: expected NH"
             _, t, v = read_bit(stream, start + (i + 2) * BT, t, v)
             return None, t, v
         bits.append(bit)
@@ -327,7 +327,7 @@ class Stream:
 
     def skip_until(self, until):
         i = int(until * SAMPLE_RATE)
-        assert i >= self.sample_i
+        assert i >= self.sample_i, "skip to the past?"
         self.sample_i = i
         return self.next()
 
@@ -343,13 +343,13 @@ class Stream:
     def next(self, until=None):
         sample = self.next_sample()
         v = 0 if sample == 0x02 else 1 # señal invertida
-        t = self.sample_i / SAMPLE_RATE
-
-        if self.sample_i % SAMPLE_RATE == 0:
-            sys.stderr.write(f'{t=}\n')
+        t = self.time()
         self.sample_i += 1
 
         return t, v
+
+    def time(self):
+        return self.sample_i / SAMPLE_RATE
 
 def main():
     n = int(sys.argv[2])
@@ -371,7 +371,7 @@ def main():
             if n == 0:
                 break
         except AssertionError as e:
-            sys.stderr.write(f"AssertionError around {t=}: {str(e)}\n")
+            sys.stderr.write(f"t={stream.time():.6f} :: AssertionError: {str(e)}\n")
             previous_frame = None
 try:
     main()
