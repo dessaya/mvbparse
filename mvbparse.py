@@ -146,7 +146,8 @@ class ProcessDataResponse:
     def is_master(self): return False
 
     def __str__(self):
-        return f'SLAVE ProcessDataResponse {len(self.data)} bytes'
+        n = len(self.data)
+        return 'SLAVE ProcessDataResponse {} bytes: 0x{:0{w}x}'.format(n, to_int(''.join(self.data)), w=n * 2)
 
 
 # 3.5.4.1 Process Data telegram
