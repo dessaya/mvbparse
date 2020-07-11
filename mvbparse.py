@@ -83,6 +83,7 @@ fcodes = {
 
 @dataclass
 class MasterFrame:
+    t: float
     fcode: FCode
     address: int
 
@@ -94,7 +95,7 @@ class MasterFrame:
             return f'[port 0x{self.address:03x}]'
         return f'[physical 0x{self.address:03x}]'
 
-def parse_master_frame(data):
+def parse_master_frame(t, data):
     # 3.4.1.1 Master Frame Format
     assert len(data) == 3, "master frame: len(data) == 3"
     check_crc(data[:2], data[2])
@@ -102,14 +103,14 @@ def parse_master_frame(data):
     # 3.5.2.1 Master Frame format
     fcode = fcodes[(data[0] & 0xf0) >> 4]
     address = (data[0] & 0x0f) << 8 | data[1]
-    return MasterFrame(fcode, address)
+    return MasterFrame(t, fcode, address)
 
 @dataclass
 class SlaveFrame:
     data: list[int]
 
     def __str__(self):
-        return f'SLAVE ({len(self.data):2}b)'
+        return f'SLAVE ?? ({len(self.data):2}b)'
 
 # 3.4.1.2 Slave Frame Format
 slave_formats = {
@@ -131,10 +132,43 @@ def parse_slave_frame(data: list[int], master_frame: MasterFrame):
         return parser(data_, master_frame)
     return SlaveFrame(data_)
 
+class ProcessVariable:
+    def __init__(self, port):
+        self.port = port
+        self.data = []
+        self.n = 0
+
+    def update(self, t, data):
+        if not self.data or self.data[-1][1] != data:
+            self.data.append((t, data))
+        self.n += 1
+
+    def __repr__(self):
+        port, n, data = self.port, self.n, self.data
+        return f'[[{port=}] [{n=:>5}] [{self.format_changes()}]]'
+
+    def format_changes(self):
+        if len(self.data) > 18:
+            return '... ' + str(len(self.data)) + ' ...'
+        return ' '.join(f'\n                  t={t:7.3f}s  {to_hex(data)}' for t, data in self.data)
+
+    def __lt__(self, v):
+        return len(self.data) < len(v.data)
+
+variables = {
+}
+
 @dataclass
 class ProcessDataResponse:
-    logical_address: int
+    t: float
+    port: int
     data: list[int]
+
+    def __post_init__(self):
+        port = f'0x{self.port:03x}'
+        if port not in variables:
+            variables[port] = ProcessVariable(port)
+        variables[port].update(self.t, self.data)
 
     def __str__(self):
         n = len(self.data)
@@ -143,7 +177,7 @@ class ProcessDataResponse:
 
 # 3.5.4.1 Process Data telegram
 def parse_slave_frame_process_data(data: list[int], master_frame: MasterFrame):
-    return ProcessDataResponse(master_frame.address, data)
+    return ProcessDataResponse(master_frame.t, master_frame.address, data)
 
 @dataclass
 class MessageDataResponse:
@@ -255,7 +289,7 @@ def main():
                 t, master, slave = line.strip().split(',')
 
                 t = float(t)
-                master = parse_master_frame(from_hex(master))
+                master = parse_master_frame(t, from_hex(master))
                 slave = parse_slave_frame(from_hex(slave), master) if slave else 'no slave frame'
                 print(f'{t=:.6f} :: {str(master)} :: {str(slave)}')
 
@@ -269,3 +303,6 @@ try:
     main()
 except StopIteration:
     pass
+
+import pprint
+pprint.pprint(sorted(variables.values()))
