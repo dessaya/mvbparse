@@ -5,8 +5,7 @@ import sys
 import struct
 
 def to_hex(data: list[int]) -> str:
-    hex = ''.join(f'{x:02x}' for x in data)
-    return f'0x{hex}'
+    return '0x' + ''.join(f'{x:02x}' for x in data)
 
 # Table 53
 @unique
@@ -244,11 +243,7 @@ assert check_crc(['01111110', '11000011'], '11011101') == None
 
 def from_hex(s):
     assert len(s) % 2 == 0, "odd hex length"
-    data = []
-    for i in range(len(s) // 2):
-        byte = s[i * 2: i * 2 + 2]
-        data.append(eval(f'0x{byte}'))
-    return data
+    return [int(s[i * 2: i * 2 + 2], 16) for i in range(len(s) // 2)]
 
 def main():
     n = int(sys.argv[2])
