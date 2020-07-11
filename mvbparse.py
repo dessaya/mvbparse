@@ -4,11 +4,9 @@ from enum import Enum, unique
 import sys
 import struct
 
-BT = 666.7e-9
-SAMPLE_RATE = 12000000
-
-def to_int(bits):
-    return eval('0b' + bits)
+def to_hex(data: list[int]) -> str:
+    hex = ''.join(f'{x:02x}' for x in data)
+    return f'0x{hex}'
 
 # Table 53
 @unique
@@ -89,34 +87,30 @@ class MasterFrame:
     fcode: FCode
     address: int
 
-    def is_master(self): return True
-
     def __str__(self):
-        return f'MASTER [f_code={self.fcode.n} {self.fcode.master_request.name}] -> {self.describe_address()}'
+        return f'MASTER [{self.fcode.master_request.name}] -> {self.describe_address()}'
 
     def describe_address(self):
         if self.fcode.address_type == AddressType.LOGICAL:
             return f'[port 0x{self.address:03x}]'
         return f'[physical 0x{self.address:03x}]'
 
-def parse_master_frame(data, previous_frame):
+def parse_master_frame(data):
     # 3.4.1.1 Master Frame Format
     assert len(data) == 3, "master frame: len(data) == 3"
     check_crc(data[:2], data[2])
 
     # 3.5.2.1 Master Frame format
-    fcode = fcodes[to_int(data[0][:4])]
-    address = to_int(data[0][4:] + data[1])
+    fcode = fcodes[(data[0] & 0xf0) >> 4]
+    address = (data[0] & 0x0f) << 8 | data[1]
     return MasterFrame(fcode, address)
 
 @dataclass
 class SlaveFrame:
-    data: list[str]
-
-    def is_master(self): return False
+    data: list[int]
 
     def __str__(self):
-        return f'SLAVE {len(self.data)} bytes'
+        return f'SLAVE ({len(self.data):2}b)'
 
 # 3.4.1.2 Slave Frame Format
 slave_formats = {
@@ -127,7 +121,7 @@ slave_formats = {
     18: [(0, 8), (9, 17)],
     36: [(0, 8), (9, 17), (18, 26), (27, 35)],
 }
-def parse_slave_frame(data: list[str], master_frame: MasterFrame):
+def parse_slave_frame(data: list[int], master_frame: MasterFrame):
     data_ = []
     for a, crc in slave_formats[len(data)]:
         check_crc(data[a:crc], data[crc])
@@ -143,15 +137,13 @@ class ProcessDataResponse:
     logical_address: int
     data: list[int]
 
-    def is_master(self): return False
-
     def __str__(self):
         n = len(self.data)
-        return 'SLAVE ProcessDataResponse {} bytes: 0x{:0{w}x}'.format(n, to_int(''.join(self.data)), w=n * 2)
+        return f'SLAVE ({n:2}b): {to_hex(self.data)}'
 
 
 # 3.5.4.1 Process Data telegram
-def parse_slave_frame_process_data(data: list[str], master_frame: MasterFrame):
+def parse_slave_frame_process_data(data: list[int], master_frame: MasterFrame):
     return ProcessDataResponse(master_frame.address, data)
 
 @dataclass
@@ -159,43 +151,51 @@ class MessageDataResponse:
     device_address: int
     data: list[int]
 
-    def is_master(self): return False
-
     def __str__(self):
         return f'SLAVE MessageDataResponse {len(self.data)} bytes'
 
 # 3.5.4.2 Message Data
-def parse_slave_frame_message_data(data: list[str], master_frame: MasterFrame):
+def parse_slave_frame_message_data(data: list[int], master_frame: MasterFrame):
     return MessageDataResponse(master_frame.address, data)
 
 @dataclass
 class DeviceStatusResponse:
     device_address: int
-    SP: str
-    BA: str
-    GW: str
-    MD: str
-    class_specific: str
-    LAT: str
-    RLD: str
-    SSD: str
-    SDD: str
-    ERD: str
-    FRC: str
-    DNR: str
-    SER: str
-
-    def is_master(self): return False
+    SP: int
+    BA: int
+    GW: int
+    MD: int
+    class_specific: list(int)
+    LAT: int
+    RLD: int
+    SSD: int
+    SDD: int
+    ERD: int
+    FRC: int
+    DNR: int
+    SER: int
 
     def __str__(self):
         return f'SLAVE {repr(self)}'
 
+def to_bits(n: int):
+    assert n < 256, "??"
+    return (
+        1 if n & 0b10000000 else 0,
+        1 if n & 0b01000000 else 0,
+        1 if n & 0b00100000 else 0,
+        1 if n & 0b00010000 else 0,
+        1 if n & 0b00001000 else 0,
+        1 if n & 0b00000100 else 0,
+        1 if n & 0b00000010 else 0,
+        1 if n & 0b00000001 else 0,
+    )
+
 # 3.6.4.1.1 Device_Status
-def parse_slave_frame_device_status(data: list[str], master_frame: MasterFrame):
+def parse_slave_frame_device_status(data: list[int], master_frame: MasterFrame):
     assert len(data) == 2, "parse_slave_frame_device_status len data"
-    SP, BA, GW, MD = data[0][:4]
-    class_specific = data[0][4:]
-    LAT, RLD, SSD, SDD, ERD, FRC, DNR, SER = data[1]
+    SP, BA, GW, MD, *class_specific = to_bits(data[0])
+    LAT, RLD, SSD, SDD, ERD, FRC, DNR, SER = to_bits(data[1])
     return DeviceStatusResponse(master_frame.address, SP, BA, GW, MD, class_specific, LAT, RLD, SSD, SDD, ERD, FRC, DNR, SER)
 
 # 3.5.4 Telegram types
@@ -242,137 +242,34 @@ def xor(a, b):
 
 assert check_crc(['01111110', '11000011'], '11011101') == None
 
-frame_types = {
-    ('NH', 'NL', '0', 'NH', 'NL', '0', '0', '0'): parse_master_frame,
-    ('1', '1', '1', 'NL', 'NH', '1', 'NL', 'NH'): parse_slave_frame,
-}
-
-# 3.3.1.7 Valid frame
-def read_frame(stream, previous_frame):
-    t, v = stream.find(1)
-
-    # 3.3.1.4 Start Bit
-    start = t
-    start_bit, t, v = read_bit(stream, start, t, v)
-    assert(start_bit == '1'), "start bit should be 1"
-    i = 0
+def from_hex(s):
+    assert len(s) % 2 == 0, "odd hex length"
     data = []
-    while True:
-        isStartDelimiter = i == 0
-        byte, t, v = read_byte(stream, start + BT + i * 8 * BT, t, v, isStartDelimiter)
-        if not byte:
-            break
-        if isStartDelimiter:
-            # 3.3.1.5 Start Delimiter
-            start_delimiter = tuple(byte)
-            assert start_delimiter in frame_types, "start_delimiter"
-            frame_parser = frame_types[start_delimiter]
-        else:
-            data.append(''.join(byte))
-        i += 1
-    frame = frame_parser(data, previous_frame)
-    return start, frame
-
-def read_byte(stream, start, t, v, isStartDelimiter):
-    bits = []
-    for i in range(8):
-        bit, t, v = read_bit(stream, start + i * BT, t, v)
-        if not isStartDelimiter and bit != '1' and bit != '0':
-            # 3.3.1.6 End Delimiter
-            assert i == 0, "unexpected end delimiter"
-            assert bit == 'NL', "end delimiter: expected NL"
-            bit, t, v = read_bit(stream, start + (i + 1) * BT, t, v)
-            assert bit == 'NH', "end delimiter: expected NH"
-            _, t, v = read_bit(stream, start + (i + 2) * BT, t, v)
-            return None, t, v
-        bits.append(bit)
-    return bits, t, v
-
-bit_names = {
-    # 3.3.1.2 Bit encoding
-    (1, 0): '1',
-    (0, 1): '0',
-    # 3.3.1.3 Non-data symbols
-    (1, 1): 'NH',
-    (0, 0): 'NL',
-}
-
-def read_bit(stream, start, t, v):
-    t, v1 = stream.skip_until(start + BT / 4)
-    t, v2 = stream.skip_until(start + 3 * BT / 4)
-    t, v = stream.skip_until(start + BT)
-    return bit_names[(v1, v2)], t, v
-
-class Stream:
-    def __init__(self):
-        self.f = open(sys.argv[1], 'rb')
-        self.sample_i = 0
-        self.block = None
-        self.block_len = 0
-        self.block_i = 0
-
-    def next_block(self):
-        self.block = self.f.read(4096)
-        self.block_i += self.block_len
-        self.block_len = len(self.block)
-
-    def check_block(self):
-        while self.block == None or self.sample_i >= self.block_i + self.block_len:
-            self.next_block()
-
-    def next_sample(self):
-        self.check_block()
-        b = self.block[self.sample_i - self.block_i]
-        return b
-
-    def skip_until(self, until):
-        i = int(until * SAMPLE_RATE)
-        assert i >= self.sample_i, "skip to the past?"
-        self.sample_i = i
-        return self.next()
-
-    def find(self, v):
-        self.check_block()
-        while True:
-            i = self.block.find(b'\0' if v else b'\2', max(0, self.sample_i - self.block_i))
-            if i > 0:
-                self.sample_i = self.block_i + i
-                return self.next()
-            self.next_block()
-
-    def next(self, until=None):
-        sample = self.next_sample()
-        v = 0 if sample == 0x02 else 1 # señal invertida
-        t = self.time()
-        self.sample_i += 1
-
-        return t, v
-
-    def time(self):
-        return self.sample_i / SAMPLE_RATE
+    for i in range(len(s) // 2):
+        byte = s[i * 2: i * 2 + 2]
+        data.append(eval(f'0x{byte}'))
+    return data
 
 def main():
     n = int(sys.argv[2])
 
-    stream = Stream()
-    t, v = stream.next()
-    assert v == 0
-    previous_frame = None
-    while True:
-        try:
-            t, frame = read_frame(stream, previous_frame)
-            if previous_frame and previous_frame.is_master():
-                if frame.is_master():
-                    print(f'{t=:.6f} :: {str(previous_frame)} :: (no slave frame)')
-                else:
-                    print(f'{t=:.6f} :: {str(previous_frame)} :: {str(frame)}')
-            previous_frame = frame
-            n -= 1
-            if n == 0:
-                break
-        except AssertionError as e:
-            sys.stderr.write(f"t={stream.time():.6f} :: AssertionError: {str(e)}\n")
-            previous_frame = None
+    with open(sys.argv[1]) as f:
+        while True:
+            try:
+                line = next(f)
+                t, master, slave = line.strip().split(',')
+
+                t = float(t)
+                master = parse_master_frame(from_hex(master))
+                slave = parse_slave_frame(from_hex(slave), master) if slave else 'no slave frame'
+                print(f'{t=:.6f} :: {str(master)} :: {str(slave)}')
+
+                n -= 1
+                if n == 0:
+                    break
+            except AssertionError as e:
+                sys.stderr.write(f"{t=:.6f}s :: AssertionError: {str(e)}\n")
+
 try:
     main()
 except StopIteration:
