@@ -26,7 +26,7 @@ class Frame:
 
 # 3.3.1.7 Valid frame
 def read_frame(stream):
-    t, v = stream.find(1)
+    t, v = stream.next_frame()
 
     # 3.3.1.4 Start Bit
     start = t
@@ -90,6 +90,7 @@ class Stream:
         self.block = None
         self.block_len = 0
         self.block_i = 0
+        self.inverted = sys.argv[2] == '1'
 
     def next_block(self):
         self.block = self.f.read(4096)
@@ -111,18 +112,24 @@ class Stream:
         self.sample_i = i
         return self.next()
 
-    def find(self, v):
+    def next_frame(self):
         self.check_block()
         while True:
-            i = self.block.find(b'\0' if v else b'\2', max(0, self.sample_i - self.block_i))
+            i = self.block.find(b'\0', max(0, self.sample_i - self.block_i))
             if i > 0:
                 self.sample_i = self.block_i + i
+                if not self.inverted:
+                    self.sample_i -= int(SAMPLE_RATE * BT / 2)
+                    if self.sample_i < 0:
+                        self.sample_i = 0
                 return self.next()
             self.next_block()
 
     def next(self, until=None):
         sample = self.next_sample()
-        v = 0 if sample == 0x02 else 1 # señal invertida
+        v = 1 if sample == 0x02 else 0
+        if self.inverted:
+            v = 1 - v
         t = self.time()
         self.sample_i += 1
 
@@ -135,7 +142,6 @@ class Stream:
 def main():
     stream = Stream()
     t, v = stream.next()
-    assert v == 0
 
     previous_frame = None
     while True:
