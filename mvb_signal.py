@@ -30,7 +30,7 @@ def read_frame(stream):
 
     # 3.3.1.4 Start Bit
     start = t
-    start_bit, t, v = read_bit(stream, start, t, v)
+    start_bit, t, v = read_bit(stream, start)
     assert(start_bit == '1'), "start bit should be 1"
     i = 0
     data = []
@@ -56,14 +56,14 @@ def read_frame(stream):
 def read_byte(stream, start, t, v, isStartDelimiter):
     bits = []
     for i in range(8):
-        bit, t, v = read_bit(stream, start + i * BT, t, v)
+        bit, t, v = read_bit(stream, start + i * BT)
         if not isStartDelimiter and bit != '1' and bit != '0':
             # 3.3.1.6 End Delimiter
             assert i == 0, "unexpected end delimiter"
             assert bit == 'NL', "end delimiter: expected NL"
-            bit, t, v = read_bit(stream, start + (i + 1) * BT, t, v)
+            bit, t, v = read_bit(stream, start + (i + 1) * BT)
             assert bit == 'NH', "end delimiter: expected NH"
-            _, t, v = read_bit(stream, start + (i + 2) * BT, t, v)
+            _, t, v = read_bit(stream, start + (i + 2) * BT)
             return None, t, v
         bits.append(bit)
     return bits, t, v
@@ -77,7 +77,7 @@ bit_names = {
     (0, 0): 'NL',
 }
 
-def read_bit(stream, start, t, v):
+def read_bit(stream, start):
     t, v1 = stream.skip_until(start + BT / 4)
     t, v2 = stream.skip_until(start + 3 * BT / 4)
     t, v = stream.skip_until(start + BT)
@@ -94,6 +94,8 @@ class Stream:
 
     def next_block(self):
         self.block = self.f.read(4096)
+        if len(self.block) == 0:
+            raise StopIteration("done")
         self.block_i += self.block_len
         self.block_len = len(self.block)
 
@@ -125,7 +127,7 @@ class Stream:
                 return self.next()
             self.next_block()
 
-    def next(self, until=None):
+    def next(self):
         sample = self.next_sample()
         v = 1 if sample == 0x02 else 0
         if self.inverted:
