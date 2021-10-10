@@ -192,18 +192,6 @@ error_t read_byte(uint8_t *r) {
         bool bit;
         error_t err = read_bit(&bit);
         if (err) return err;
-        if (bit) *r |= 1;
-        *r <<= 1;
-    }
-    return NULL;
-}
-
-error_t read_word(uint16_t *r) {
-    *r = 0;
-    for (int i = 0; i < 16; i++) {
-        bool bit;
-        error_t err = read_bit(&bit);
-        if (err) return err;
         *r <<= 1;
         if (bit) *r |= 1;
     }
@@ -218,18 +206,31 @@ error_t read_bytes(uint8_t r[], int n) {
     return NULL;
 }
 
-error_t read_words(uint16_t r[], int n) {
-    for (int i = 0; i < n; i++) {
-        error_t err = read_word(&r[i]);
-        if (err) return err;
+// 3.4.1.3 Check Sequence
+// https://stackoverflow.com/a/49676373
+// TODO use lookup table?
+uint8_t calc_crc(const uint8_t message[], int length) {
+    const uint8_t poly = 0xe5;
+    uint8_t crc = 0;
+    for (unsigned i = 0; i < length; i++) {
+        crc ^= message[i];
+        for (int j = 0; j < 8; j++) {
+            crc = (crc & 0x80u) ? ((crc << 1) ^ (poly << 1)) : (crc << 1);
+        }
     }
-    return NULL;
+    crc &= ~1;
+    crc |= __builtin_parity(crc);
+    return ~crc;
 }
 
 // 3.4.1.3 Check Sequence
-error_t check_crc(uint16_t data[], int n, uint8_t cs) {
-    // TODO
-    return NULL;
+error_t check_crc(uint8_t data[], int n, uint8_t cs) {
+    uint8_t calculated = calc_crc(data, n);
+    // TODO: parity bit?
+    // bool ok = calculated == cs;
+    bool ok = (calculated >> 1) == (cs >> 1);
+    //printf("CRC: CS = %02x -- calc = %02x -- %s\n", cs, calculated, ok ? "ok" : "");
+    return ok ? NULL : "failed CRC check";
 }
 
 struct {
@@ -249,23 +250,24 @@ error_t read_master() {
         return "expected master frame, got slave\n";
     }
 
-    uint16_t data;
-    err = read_word(&data);
+    uint8_t data[2];
+    err = read_bytes(data, 2);
+    if (err) return err;
 
     uint8_t cs;
     err = read_byte(&cs);
     if (err) return err;
 
-    err = check_crc(&data, 1, cs);
+    err = check_crc(data, 2, cs);
     if (err) return err;
 
-    master_frame.fcode = data >> 12;
-    master_frame.address = data & 0x0fff;
+    master_frame.fcode = data[0] >> 4;
+    master_frame.address = ((data[0] & 0xf) << 8) | data[1];
     return read_end_delimiter();
 }
 
 struct {
-    uint16_t data[16];
+    uint8_t data[32];
     int size;
 } slave_frame;
 
@@ -281,13 +283,13 @@ error_t read_slave(const fcode_t *fcode) {
         return "expected slave frame, got master\n";
     }
 
-    int remaining = fcode->slave_frame_size / 16;
+    int remaining = fcode->slave_frame_size / 8;
     slave_frame.size = remaining;
-    uint16_t *data = slave_frame.data;
+    uint8_t *data = slave_frame.data;
     while (remaining > 0) {
-        // one check sequence every 4 words
-        int n = remaining <= 4 ? remaining : 4;
-        err = read_words(data, n);
+        // one check sequence every 8 bytes
+        int n = remaining <= 8 ? remaining : 8;
+        err = read_bytes(data, n);
         if (err) return err;
 
         uint8_t cs;
@@ -310,13 +312,17 @@ error_t read_master_slave() {
 }
 
 void print_master() {
-    printf("MASTER [ %d ] -> { 0x%03x } ", master_frame.fcode, master_frame.address);
+    printf(
+        "MASTER [fcode = %2d] -> { 0x%03x } ",
+        master_frame.fcode,
+        master_frame.address
+    );
 }
 
 void print_slave() {
     printf("  SLAVE ");
     for (int i = 0; i < slave_frame.size; i++) {
-        printf("%04x", slave_frame.data[i]);
+        printf("%02x", slave_frame.data[i]);
     }
     printf("\n");
 }
