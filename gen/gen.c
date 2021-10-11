@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-#define BT 666.66666666666666666e-9
+#define BT 666.66666666666666666e-9 // ns
 
 typedef struct {
     uint8_t master[3];
@@ -68,36 +68,42 @@ const frame_t data[] = {
 
 const int data_len = sizeof(data) / sizeof(data[0]);
 
-void sleep(double seconds) {
-    printf("sleep for %f nanoseconds\n", seconds * 1000000000);
+void send(uint8_t v) {
+    static uint8_t data = 0;
+    static uint8_t i = 0;
+    data = (data << 1) | v;
+    i++;
+    if (i == 8) {
+        printf("%02x\n", data);
+        i = 0;
+    }
 }
 
-void sleep_until(double until) {
-    printf("sleep until t = %f\n", until);
+void sleep_random(int a, int b) {
+    int amount = rand() % (b - a) + a;
+    for (int i = 0; i < amount; i++) {
+        send(1);
+    }
 }
 
 void sleep_random_next_frame() {
     // sleep between 750 - 1250 microseconds
-    double amount = rand() % 500 + 750;
-    sleep(amount / 1000000);
+    sleep_random(1125, 1875);
 }
 
 void sleep_random_master_slave() {
     // sleep between 4 - 16 microseconds
-    double amount = rand() % 12 + 4;
-    sleep(amount / 1000000);
+    sleep_random(6, 24);
 }
 
 typedef enum { BIT_0, BIT_1, BIT_NH, BIT_NL, } bit_t;
 
 void send_high() {
-    printf("HIGH\n");
-    sleep(BT / 2);
+    send(1);
 }
 
 void send_low() {
-    printf("LOW\n");
-    sleep(BT / 2);
+    send(0);
 }
 
 // 3.3.1.2 Bit encoding
