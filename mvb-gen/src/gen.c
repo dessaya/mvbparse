@@ -73,7 +73,7 @@ static void sendbuf_reset() {
 
 static void sendbuf_add_bit(uint8_t v) {
     if (!v) {
-        sendbuf.data[sendbuf.bytes - 1] &= ~(1 << sendbuf.bits);
+        sendbuf.data[sendbuf.bytes - 1] &= ~(1 << (7 - sendbuf.bits));
     }
     sendbuf.bits++;
     if (sendbuf.bits == 8) {
