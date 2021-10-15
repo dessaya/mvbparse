@@ -1,8 +1,6 @@
 #include <stdio.h>
-#include <time.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdint.h>
+
+#include "gen.h"
 
 #define BT 666.66666666666666666e-9 // ns
 
@@ -12,7 +10,7 @@ typedef struct {
     uint8_t slave_len;
 } frame_t;
 
-const frame_t data[] = {
+static const frame_t mvb_data[] = {
     { { 0x43, 0x90, 0xd6 }, (uint8_t[]){ 0x97, 0x1e, 0x00, 0x00, 0x00, 0x82, 0x14, 0x06, 0xdf, 0x1e, 0x0b, 0x31, 0x0f, 0x00, 0x17, 0x05, 0x8c, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x4d, 0xc9, 0x11, 0x94, 0x11, 0xa8, 0x11, 0xa8, 0x04, 0x05, 0x88 }, 36 },
     { { 0x43, 0x1b, 0xf7 }, (uint8_t[]){ 0x30, 0x00, 0x0f, 0x0c, 0x01, 0x10, 0x00, 0x00, 0x0f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0xa8, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff }, 36 },
     { { 0x00, 0x01, 0x34 }, (uint8_t[]){ 0x97, 0x1e, 0x07 }, 3 },
@@ -65,49 +63,46 @@ const frame_t data[] = {
     { { 0x43, 0x9a, 0x3b }, (uint8_t[]){ 0x7f, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x58, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xf8, 0x00, 0xa6, 0x00, 0xc6, 0x01, 0x39, 0x00, 0x00, 0xb0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff }, 36 },
 };
 
+static const int mvb_data_len = sizeof(mvb_data) / sizeof(mvb_data[0]);
 
-const int data_len = sizeof(data) / sizeof(data[0]);
+static sendbuf_t sendbuf = { 0 };
 
-void send(uint8_t v) {
-    static uint8_t data = 0;
-    static uint8_t i = 0;
-    data = (data << 1) | v;
-    i++;
-    if (i == 8) {
-        printf("%02x\n", data);
-        i = 0;
+static void sendbuf_reset() {
+    sendbuf.bytes = 1;
+    sendbuf.bits = 0;
+    sendbuf.data[sendbuf.bytes - 1] = 0xff;
+}
+
+static void sendbuf_add_bit(uint8_t v) {
+    if (!v) {
+        sendbuf.data[sendbuf.bytes - 1] &= ~(1 << (7 - sendbuf.bits));
+    }
+    sendbuf.bits++;
+    if (sendbuf.bits == 8) {
+        sendbuf.bytes++;
+        sendbuf.bits = 0;
+        sendbuf.data[sendbuf.bytes - 1] = 0xff;
     }
 }
 
-void sleep_random(int a, int b) {
-    int amount = rand() % (b - a) + a;
+static void send_n(int amount, uint8_t v) {
     for (int i = 0; i < amount; i++) {
-        send(1);
+        sendbuf_add_bit(v);
     }
-}
-
-void sleep_random_next_frame() {
-    // sleep between 750 - 1250 microseconds
-    sleep_random(1125, 1875);
-}
-
-void sleep_random_master_slave() {
-    // sleep between 4 - 16 microseconds
-    sleep_random(6, 24);
 }
 
 typedef enum { BIT_0, BIT_1, BIT_NH, BIT_NL, } bit_t;
 
-void send_high() {
-    send(1);
+static void send_high() {
+    sendbuf_add_bit(1);
 }
 
-void send_low() {
-    send(0);
+static void send_low() {
+    sendbuf_add_bit(0);
 }
 
 // 3.3.1.2 Bit encoding
-void send_bit(bit_t bit) {
+static void send_bit(bit_t bit) {
     switch (bit) {
         case BIT_1:
             send_high();
@@ -129,12 +124,12 @@ void send_bit(bit_t bit) {
 }
 
 // 3.3.1.4 Start Bit
-void send_start_bit() {
+static void send_start_bit() {
     send_bit(BIT_1);
 }
 
 // 3.3.1.5 Start Delimiter
-void send_master_start_delimiter() {
+static void send_master_start_delimiter() {
     send_bit(BIT_NH);
     send_bit(BIT_NL);
     send_bit(BIT_0);
@@ -146,7 +141,7 @@ void send_master_start_delimiter() {
 }
 
 // 3.3.1.5 Start Delimiter
-void send_slave_start_delimiter() {
+static void send_slave_start_delimiter() {
     send_bit(BIT_1);
     send_bit(BIT_1);
     send_bit(BIT_1);
@@ -158,26 +153,26 @@ void send_slave_start_delimiter() {
 }
 
 // 3.3.1.6 End Delimiter
-void send_end_delimiter() {
+static void send_end_delimiter() {
     send_bit(BIT_NL);
     send_bit(BIT_NH);
 }
 
-void send_byte(uint8_t byte) {
+static void send_byte(uint8_t byte) {
     for (int i = 7; i >= 0; i--) {
         bit_t bit = (byte >> i) & 0x1;
         send_bit(bit);
     }
 }
 
-void send_bytes(const uint8_t bytes[], int len) {
+static void send_bytes(const uint8_t bytes[], int len) {
     for (int i = 0; i < len; i++) {
         send_byte(bytes[i]);
     }
 }
 
 // 3.4.1.1 Master Frame format
-void send_master(const uint8_t bytes[]) {
+static void send_master(const uint8_t bytes[]) {
     send_start_bit();
     send_master_start_delimiter();
     send_bytes(bytes, 3);
@@ -185,22 +180,34 @@ void send_master(const uint8_t bytes[]) {
 }
 
 // 3.4.1.2 Slave Frame format
-void send_slave(const uint8_t bytes[], int len) {
+static void send_slave(const uint8_t bytes[], int len) {
     send_start_bit();
     send_slave_start_delimiter();
     send_bytes(bytes, len);
     send_end_delimiter();
 }
 
+sendbuf_t *next_frame() {
+    static size_t i = 0;
+
+    sendbuf_reset();
+
+    send_master(mvb_data[i].master);
+    send_n(15, 1);
+    send_slave(mvb_data[i].slave, mvb_data[i].slave_len);
+
+    i++;
+    if (i == mvb_data_len) {
+        i = 0;
+    }
+
+    return &sendbuf;
+}
 
 
 int main(void) {
-    while (1) {
-        for (int i = 0; i < data_len; i++) {
-            sleep_random_next_frame();
-            send_master(data[i].master);
-            sleep_random_master_slave();
-            send_slave(data[i].slave, data[i].slave_len);
-        }
+    sendbuf_t *s = next_frame();
+    for (size_t i = 0; i < s->bytes; i++) {
+        printf("%02x\n", s->data[i]);
     }
 }
