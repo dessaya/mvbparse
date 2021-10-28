@@ -117,7 +117,7 @@ void GPIO2_IRQHandler(void) {
 end:
     rxBuf->ready = true;
     rxBufIdx = (rxBufIdx + 1) % RXBUFS_SIZE;
-	Chip_PININT_ClearIntStatus(LPC_GPIO_PIN_INT, PININTCH(PININT_INDEX));
+    Chip_PININT_ClearIntStatus(LPC_GPIO_PIN_INT, PININTCH(PININT_INDEX));
 }
 
 rxBuf_t *receiveFrame() {
@@ -150,26 +150,26 @@ int main(void) {
     boardInit();
     uartConfig(UART_USB, 115200);
 
-	// inicialización interrupción TFIL0 = GPIO2[0]
-	gpioInit(T_FIL0, GPIO_INPUT_PULLDOWN);
+    // inicialización interrupción TFIL0 = GPIO2[0]
+    gpioInit(T_FIL0, GPIO_INPUT_PULLDOWN);
 
-	/* Configure interrupt channel for the GPIO pin in SysCon block */
-	Chip_SCU_GPIOIntPinSel(PININT_INDEX, INPUT_PORT, INPUT_PIN);
+    /* Configure interrupt channel for the GPIO pin in SysCon block */
+    Chip_SCU_GPIOIntPinSel(PININT_INDEX, INPUT_PORT, INPUT_PIN);
 
-	/* Configure channel interrupt as edge sensitive and falling edge interrupt */
-	Chip_PININT_ClearIntStatus(LPC_GPIO_PIN_INT, PININTCH(PININT_INDEX));
-	Chip_PININT_SetPinModeEdge(LPC_GPIO_PIN_INT, PININTCH(PININT_INDEX));
-	Chip_PININT_EnableIntLow(LPC_GPIO_PIN_INT, PININTCH(PININT_INDEX));
+    /* Configure channel interrupt as edge sensitive and falling edge interrupt */
+    Chip_PININT_ClearIntStatus(LPC_GPIO_PIN_INT, PININTCH(PININT_INDEX));
+    Chip_PININT_SetPinModeEdge(LPC_GPIO_PIN_INT, PININTCH(PININT_INDEX));
+    Chip_PININT_EnableIntLow(LPC_GPIO_PIN_INT, PININTCH(PININT_INDEX));
 
-	/* Enable interrupt in the NVIC */
-	NVIC_ClearPendingIRQ(PIN_INT2_IRQn);
-	NVIC_EnableIRQ(PIN_INT2_IRQn);
+    /* Enable interrupt in the NVIC */
+    NVIC_ClearPendingIRQ(PIN_INT2_IRQn);
+    NVIC_EnableIRQ(PIN_INT2_IRQn);
 
-	printf("Init OK\r\n");
+    printf("Init OK\r\n");
 
-	while (true) {
-		rxBuf_t *rxBuf = receiveFrame();
+    while (true) {
+        rxBuf_t *rxBuf = receiveFrame();
         printFrame(rxBuf);
         rxBuf->ready = false;
-	}
+    }
 }
