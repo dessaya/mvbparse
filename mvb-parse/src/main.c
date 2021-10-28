@@ -55,7 +55,9 @@ static inline bool waitUntilElapsedOrEdge(int cycles, bool v1) {
 }
 
 static inline bool waitUntilHigh() {
-    for (int i = 0; i < IDLE_CYCLES; i++) {
+    uint32_t start = cyclesCounterRead();
+    uint32_t end = start + IDLE_CYCLES;
+    while (cyclesCounterRead() < end) {
         if (!READ()) return true;
     }
     return false;
