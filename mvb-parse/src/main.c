@@ -26,11 +26,13 @@ typedef enum {
     NL,    // LOW  LOW
 } symbol_t;
 
+#define MAX_SYMBOLS 1024
+
 typedef struct {
-    symbol_t syms[1024];
+    symbol_t syms[MAX_SYMBOLS];
     int size;
     bool ready;
-    bool error;
+    const char *error;
 } rxBuf_t;
 
 #define RXBUFS_SIZE 10
@@ -83,20 +85,19 @@ void GPIO2_IRQHandler(void) {
         return;
     }
     rxBuf->size = 0;
-    rxBuf->error = false;
+    rxBuf->error = NULL;
 
     // 3.3.1.5 Start Delimiter
     // wait until the start of the first symbol of the start delimiter
     if (!waitUntilHigh()) {
-        rxBuf->error = true;
+        rxBuf->error = "start delimiter not found";
         goto end;
     }
 
     // readSymbol() expects to start from BT / 4
     bool v = waitUntilElapsedOrEdge(BT4_CYCLES, true);
     if (!v) {
-        // edge detected -- should not happen
-        rxBuf->error = true;
+        rxBuf->error = "unexpected edge in start delimiter";
         goto end;
     }
 
@@ -105,6 +106,10 @@ void GPIO2_IRQHandler(void) {
         v = readSymbol(s, v);
         // 3.3.1.6 End Delimiter
         if (rxBuf->size > 8 && (*s == NH || *s == NL)) {
+            goto end;
+        }
+        if (rxBuf->size == MAX_SYMBOLS) {
+            rxBuf->error = "frame too large";
             goto end;
         }
     }
@@ -126,7 +131,7 @@ rxBuf_t *receiveFrame() {
 
 void printFrame(rxBuf_t *rxBuf) {
     if (rxBuf->error) {
-        printf("[error] ");
+        printf("[%s] ", rxBuf->error);
     } else {
         printf("[OK] ");
     }
