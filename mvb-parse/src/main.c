@@ -41,25 +41,25 @@ typedef struct {
 rxBuf_t rxBufs[RXBUFS_SIZE] = {0};
 
 static inline bool waitUntilElapsedOrEdge(int cycles, bool v1) {
-    uint32_t start = cyclesCounterRead();
-    uint32_t end = start + cycles;
+    cyclesCounterReset();
     do {
         bool v2 = READ();
         if (v2 != v1) {
             // edge detected before wait time elapsed
             return v2;
         }
-    } while (cyclesCounterRead() < end);
+    } while (cyclesCounterRead() < cycles);
     // edge not detected
     return v1;
 }
 
 static inline bool waitUntilHigh() {
-    uint32_t start = cyclesCounterRead();
-    uint32_t end = start + IDLE_CYCLES;
-    while (cyclesCounterRead() < end) {
-        if (!READ()) return true;
-    }
+    cyclesCounterReset();
+    do {
+        if (READ()) {
+            return true;
+        }
+    } while (cyclesCounterRead() < IDLE_CYCLES);
     return false;
 }
 
@@ -86,8 +86,6 @@ void GPIO2_IRQHandler(void) {
         printf("rx buffer is full\r\n");
         return;
     }
-    rxBuf->size = 0;
-    rxBuf->error = NULL;
 
     // 3.3.1.5 Start Delimiter
     // wait until the start of the first symbol of the start delimiter
@@ -107,7 +105,7 @@ void GPIO2_IRQHandler(void) {
         symbol_t *s = &rxBuf->syms[rxBuf->size++];
         v = readSymbol(s, v);
         // 3.3.1.6 End Delimiter
-        if (rxBuf->size > 8 && (*s == NH || *s == NL)) {
+        if ((*s > 1) /* NH = 2, NL = 3 */ && (rxBuf->size > 8)) {
             goto end;
         }
         if (rxBuf->size == MAX_SYMBOLS) {
@@ -119,6 +117,7 @@ void GPIO2_IRQHandler(void) {
 end:
     rxBuf->ready = true;
     rxBufIdx = (rxBufIdx + 1) % RXBUFS_SIZE;
+
     Chip_PININT_ClearIntStatus(LPC_GPIO_PIN_INT, PININTCH(PININT_INDEX));
 }
 
@@ -172,6 +171,8 @@ int main(void) {
     while (true) {
         rxBuf_t *rxBuf = receiveFrame();
         printFrame(rxBuf);
+        rxBuf->size = 0;
+        rxBuf->error = NULL;
         rxBuf->ready = false;
     }
 }
