@@ -80,12 +80,7 @@ static inline bool readSymbol(symbol_t *s, bool v1) {
 
 void GPIO2_IRQHandler(void) {
     static int rxBufIdx = 0;
-
-    rxBuf_t *rxBuf = &rxBufs[rxBufIdx];
-    if (rxBuf->ready) {
-        printf("rx buffer is full\r\n");
-        return;
-    }
+    static rxBuf_t *rxBuf = &rxBufs[0];
 
     // 3.3.1.5 Start Delimiter
     // wait until the start of the first symbol of the start delimiter
@@ -116,7 +111,13 @@ void GPIO2_IRQHandler(void) {
 
 end:
     rxBuf->ready = true;
+
     rxBufIdx = (rxBufIdx + 1) % RXBUFS_SIZE;
+    rxBuf = &rxBufs[rxBufIdx];
+    if (rxBuf->ready) {
+        printf("rx buffer is full\r\n");
+        return;
+    }
 
     Chip_PININT_ClearIntStatus(LPC_GPIO_PIN_INT, PININTCH(PININT_INDEX));
 }
