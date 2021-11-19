@@ -10,7 +10,6 @@ SAMPLE_RATE = 12000000
 SIGNAL_HIGH = 0xff
 SIGNAL_LOW = 0xfe
 
-from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum, unique
 import sys

@@ -1,3 +1,6 @@
+# mvbparse.py
+# Lee de stdin la salida de mvb_signal.py
+
 from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum, unique
@@ -280,24 +283,17 @@ def from_hex(s):
     return [int(s[i * 2: i * 2 + 2], 16) for i in range(len(s) // 2)]
 
 def main():
-    n = int(sys.argv[2])
+    while True:
+        try:
+            line = next(sys.stdin)
+            t, master, slave = line.strip().split(',')
 
-    with open(sys.argv[1]) as f:
-        while True:
-            try:
-                line = next(f)
-                t, master, slave = line.strip().split(',')
-
-                t = float(t)
-                master = parse_master_frame(t, from_hex(master))
-                slave = parse_slave_frame(from_hex(slave), master) if slave else 'no slave frame'
-                print(f'{t=:.6f} :: {str(master)} :: {str(slave)}')
-
-                n -= 1
-                if n == 0:
-                    break
-            except AssertionError as e:
-                sys.stderr.write(f"{t=:.6f}s :: AssertionError: {str(e)}\n")
+            t = float(t)
+            master = parse_master_frame(t, from_hex(master))
+            slave = parse_slave_frame(from_hex(slave), master) if slave else 'no slave frame'
+            print(f'{t=:.6f} :: {str(master)} :: {str(slave)}')
+        except AssertionError as e:
+            sys.stderr.write(f"{t=:.6f}s :: AssertionError: {str(e)}\n")
 
 try:
     main()
