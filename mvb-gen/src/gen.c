@@ -65,7 +65,7 @@ static const int mvb_data_len = sizeof(mvb_data) / sizeof(mvb_data[0]);
 
 static sendbuf_t sendbuf = { 0 };
 
-static void sendbuf_reset() {
+void sendbuf_reset() {
     sendbuf.bytes = 1;
     sendbuf.bits = 0;
     sendbuf.data[sendbuf.bytes - 1] = 0xff;
@@ -73,7 +73,7 @@ static void sendbuf_reset() {
 
 static void sendbuf_add_bit(uint8_t v) {
     if (!v) {
-        sendbuf.data[sendbuf.bytes - 1] &= ~(1 << (7 - sendbuf.bits));
+    	sendbuf.data[sendbuf.bytes - 1] &= ~(1 << (7 - sendbuf.bits));
     }
     sendbuf.bits++;
     if (sendbuf.bits == 8) {

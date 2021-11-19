@@ -12,4 +12,6 @@ typedef struct sendbuf {
 
 sendbuf_t *next_frame();
 
+void sendbuf_reset();
+
 #endif

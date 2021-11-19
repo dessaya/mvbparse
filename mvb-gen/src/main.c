@@ -24,7 +24,12 @@ int main(void)
 
 	printf("Init OK\r\n");
 
+	sendbuf_reset();
+
+	//uint8_t receivedByte;
+
 	while (1) {
+		//while (!uartReadByte( UART_USB, &receivedByte ));
         delayInaccurateUs(750);
         sendbuf_t *buf = next_frame();
         spiWrite(SPI0, buf->data, buf->bytes);
