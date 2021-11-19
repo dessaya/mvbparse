@@ -1,3 +1,15 @@
+# mvb_signal.py
+# Lee de stdin un flujo de bytes donde cada byte representa una muestra de la señal de entrada.
+#
+# Parámetros:
+
+# Tasa de muestreo
+SAMPLE_RATE = 12000000
+
+# Cómo se representa en la entrada los valores alto y bajo de la señal
+SIGNAL_HIGH = 0xff
+SIGNAL_LOW = 0xfe
+
 from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum, unique
@@ -5,7 +17,6 @@ import sys
 import struct
 
 BT = 666.7e-9
-SAMPLE_RATE = 12000000
 
 def to_int(bits):
     return eval('0b' + bits)
@@ -85,15 +96,13 @@ def read_bit(stream, start):
 
 class Stream:
     def __init__(self):
-        self.f = open(sys.argv[1], 'rb')
         self.sample_i = 0
         self.block = None
         self.block_len = 0
         self.block_i = 0
-        self.inverted = sys.argv[2] == '1'
 
     def next_block(self):
-        self.block = self.f.read(4096)
+        self.block = sys.stdin.buffer.read(4096)
         if len(self.block) == 0:
             raise StopIteration("done")
         self.block_i += self.block_len
@@ -117,21 +126,18 @@ class Stream:
     def next_frame(self):
         self.check_block()
         while True:
-            i = self.block.find(b'\0', max(0, self.sample_i - self.block_i))
+            i = self.block.find(bytes((SIGNAL_LOW,)), max(0, self.sample_i - self.block_i))
             if i > 0:
                 self.sample_i = self.block_i + i
-                if not self.inverted:
-                    self.sample_i -= int(SAMPLE_RATE * BT / 2)
-                    if self.sample_i < 0:
-                        self.sample_i = 0
+                self.sample_i -= int(SAMPLE_RATE * BT / 2)
+                if self.sample_i < 0:
+                    self.sample_i = 0
                 return self.next()
             self.next_block()
 
     def next(self):
         sample = self.next_sample()
-        v = 1 if sample == 0x02 else 0
-        if self.inverted:
-            v = 1 - v
+        v = 1 if sample == SIGNAL_HIGH else 0
         t = self.time()
         self.sample_i += 1
 
