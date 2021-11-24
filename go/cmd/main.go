@@ -23,6 +23,7 @@ func main() {
 	events := make(chan mvb.Event)
 	go mvb.NewDecoder(mvb.NewMVBStream(), events).Loop()
 
+	n := 0
 	for {
 		ev, ok := <-events
 		if !ok {
@@ -31,9 +32,11 @@ func main() {
 		t := time.Duration(float64(uint64(time.Second)*ev.N()) / mvb.SampleRate)
 		switch ev := ev.(type) {
 		case *mvb.Telegram:
-			fmt.Printf("[%s] %+v\n", t, ev)
+			//fmt.Printf("[%s] %+v\n", t, ev)
+			n++
 		case mvb.Error:
 			fmt.Printf("[%s] %s\n", t, ev.Error())
 		}
 	}
+	fmt.Printf("processed %d telegrams\n", n)
 }
