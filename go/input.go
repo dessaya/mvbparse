@@ -20,7 +20,6 @@ type BufferedReader struct {
 	done  chan *buffer
 
 	cur *buffer
-	i   int
 
 	n uint64
 }
@@ -73,7 +72,6 @@ func (d *BufferedReader) buffer() error {
 func (d *BufferedReader) disposeBuffer() {
 	d.done <- d.cur
 	d.cur = nil
-	d.i = 0
 }
 
 func (d *BufferedReader) ReadByte() (byte, error) {
@@ -81,10 +79,10 @@ func (d *BufferedReader) ReadByte() (byte, error) {
 	if err != nil {
 		return 0, err
 	}
-	b := d.cur.buf[d.i]
-	d.i++
+	b := d.cur.buf[0]
+	d.cur.buf = d.cur.buf[1:]
 	d.n++
-	if d.i >= len(d.cur.buf) {
+	if len(d.cur.buf) == 0 {
 		d.disposeBuffer()
 	}
 	return b, nil
@@ -96,17 +94,14 @@ func (d *BufferedReader) Discard(remaining int) error {
 		if err != nil {
 			return err
 		}
-		available := len(d.cur.buf) - d.i
-		if remaining <= available {
-			d.i += remaining
-			d.n += uint64(remaining)
-			remaining = 0
-		} else {
-			d.i += available
-			d.n += uint64(available)
-			remaining -= available
+		n := remaining
+		if n > len(d.cur.buf) {
+			n = len(d.cur.buf)
 		}
-		if d.i >= len(d.cur.buf) {
+		d.cur.buf = d.cur.buf[n:]
+		d.n += uint64(n)
+		remaining -= n
+		if len(d.cur.buf) == 0 {
 			d.disposeBuffer()
 		}
 	}
@@ -119,15 +114,14 @@ func (d *BufferedReader) DiscardUntil(b byte) error {
 		if err != nil {
 			return err
 		}
-		remaining := d.cur.buf[d.i:]
-		for i, v := range remaining {
+		for i, v := range d.cur.buf {
 			if v == b {
 				d.n += uint64(i)
-				d.i += i
+				d.cur.buf = d.cur.buf[i:]
 				return nil
 			}
 		}
-		d.n += uint64(len(remaining))
+		d.n += uint64(len(d.cur.buf))
 		d.disposeBuffer()
 	}
 }
