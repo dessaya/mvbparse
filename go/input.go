@@ -16,43 +16,51 @@ const (
 const BufSize = SampleRate / 2
 
 type BufferedReader struct {
-	r  io.Reader
-	ch chan interface{}
+	ready chan interface{}
+	done  chan *buffer
 
-	cur []byte
+	cur *buffer
 	i   int
 
 	n uint64
 }
 
+type buffer struct {
+	arr [BufSize]byte
+	buf []byte
+}
+
 func NewDoubleBufferedReader(r io.Reader) *BufferedReader {
+	var bufs [2]buffer
 	d := &BufferedReader{
-		r:  r,
-		ch: make(chan interface{}, 1),
+		ready: make(chan interface{}, len(bufs)),
+		done:  make(chan *buffer, len(bufs)),
 	}
-	go d.loop()
+	for i := range bufs {
+		d.done <- &bufs[i]
+	}
+	go bufferingLoop(r, d.ready, d.done)
 	return d
 }
 
-var bufs [4][BufSize]byte
-
-func (d *BufferedReader) loop() {
-	for i := 0; ; i = (i + 1) % 4 {
-		buf := bufs[i][:]
-		n, err := d.r.Read(buf)
+func bufferingLoop(r io.Reader, ready chan interface{}, done chan *buffer) {
+	for {
+		buf := <-done
+		n, err := r.Read(buf.arr[:])
 		if err != nil {
-			d.ch <- err
+			ready <- err
 			return
 		}
-		d.ch <- buf[:n]
+		buf.buf = buf.arr[:n]
+		ready <- buf
 	}
 }
 
-func (d *BufferedReader) ensureCur() error {
+func (d *BufferedReader) buffer() error {
 	if d.cur == nil {
-		x := <-d.ch
+		x := <-d.ready
 		switch x := x.(type) {
-		case []byte:
+		case *buffer:
 			d.cur = x
 			return nil
 		case error:
@@ -62,28 +70,33 @@ func (d *BufferedReader) ensureCur() error {
 	return nil
 }
 
+func (d *BufferedReader) disposeBuffer() {
+	d.done <- d.cur
+	d.cur = nil
+	d.i = 0
+}
+
 func (d *BufferedReader) ReadByte() (byte, error) {
-	err := d.ensureCur()
+	err := d.buffer()
 	if err != nil {
 		return 0, err
 	}
-	b := d.cur[d.i]
+	b := d.cur.buf[d.i]
 	d.i++
 	d.n++
-	if d.i >= len(d.cur) {
-		d.cur = nil
-		d.i = 0
+	if d.i >= len(d.cur.buf) {
+		d.disposeBuffer()
 	}
 	return b, nil
 }
 
 func (d *BufferedReader) Discard(remaining int) error {
 	for remaining > 0 {
-		err := d.ensureCur()
+		err := d.buffer()
 		if err != nil {
 			return err
 		}
-		available := len(d.cur) - d.i
+		available := len(d.cur.buf) - d.i
 		if remaining <= available {
 			d.i += remaining
 			d.n += uint64(remaining)
@@ -93,9 +106,8 @@ func (d *BufferedReader) Discard(remaining int) error {
 			d.n += uint64(available)
 			remaining -= available
 		}
-		if d.i >= len(d.cur) {
-			d.cur = nil
-			d.i = 0
+		if d.i >= len(d.cur.buf) {
+			d.disposeBuffer()
 		}
 	}
 	return nil
@@ -103,11 +115,11 @@ func (d *BufferedReader) Discard(remaining int) error {
 
 func (d *BufferedReader) DiscardUntil(b byte) error {
 	for {
-		err := d.ensureCur()
+		err := d.buffer()
 		if err != nil {
 			return err
 		}
-		remaining := d.cur[d.i:]
+		remaining := d.cur.buf[d.i:]
 		for i, v := range remaining {
 			if v == b {
 				d.n += uint64(i)
@@ -116,8 +128,7 @@ func (d *BufferedReader) DiscardUntil(b byte) error {
 			}
 		}
 		d.n += uint64(len(remaining))
-		d.cur = nil
-		d.i = 0
+		d.disposeBuffer()
 	}
 }
 
