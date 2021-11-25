@@ -1,6 +1,7 @@
 package mvb
 
 import (
+	"bytes"
 	"io"
 	"os"
 )
@@ -114,12 +115,11 @@ func (d *BufferedReader) DiscardUntil(b byte) error {
 		if err != nil {
 			return err
 		}
-		for i, v := range d.cur.buf {
-			if v == b {
-				d.n += uint64(i)
-				d.cur.buf = d.cur.buf[i:]
-				return nil
-			}
+		i := bytes.IndexByte(d.cur.buf, b)
+		if i >= 0 {
+			d.n += uint64(i)
+			d.cur.buf = d.cur.buf[i:]
+			return nil
 		}
 		d.n += uint64(len(d.cur.buf))
 		d.disposeBuffer()
