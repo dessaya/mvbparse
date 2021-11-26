@@ -1,8 +1,14 @@
 package mvb
 
 import (
+	"strings"
+
 	"github.com/gdamore/tcell/v2"
 )
+
+func drawHLine(s tcell.Screen, y int, w int, style tcell.Style) {
+	drawTextLine(s, 1, y, w, style, strings.Repeat(string(tcell.RuneHLine), w))
+}
 
 func drawText(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string) {
 	row := y1

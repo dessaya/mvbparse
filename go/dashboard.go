@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
@@ -56,12 +55,18 @@ func (d *Dashboard) render() {
 	drawTextLine(s, 1, y, w, defStyle, fmt.Sprintf("Total: %d telegrams", d.stats.Total))
 	y++
 
+	drawHLine(s, y, w, defStyle)
+	y++
+
 	rate := d.stats.Rate()
 	drawTextLine(s, 1, y, w, defStyle, fmt.Sprintf(
 		"%s %6d telegrams/s",
 		spark(rate),
 		rate[len(rate)-1],
 	))
+	y++
+
+	drawHLine(s, y, w, defStyle)
 	y++
 
 	for i := range d.stats.fcodeRates {
@@ -75,7 +80,7 @@ func (d *Dashboard) render() {
 		y++
 	}
 
-	drawTextLine(s, 1, y, w, defStyle, strings.Repeat(string(tcell.RuneHLine), w))
+	drawHLine(s, y, w, defStyle)
 	y++
 
 	errorRate := d.stats.ErrorRate()
@@ -86,8 +91,11 @@ func (d *Dashboard) render() {
 	))
 	y++
 
-	for _, err := range d.stats.Errors {
-		drawTextLine(s, 1, y, w, errStyle, fmt.Sprintf("[%s] %s", sampleTimestamp(err.N()), err.Error()))
+	for i := 0; i < cap(d.stats.ErrorLog); i++ {
+		if i < len(d.stats.ErrorLog) {
+			err := d.stats.ErrorLog[i]
+			drawTextLine(s, 1, y, w, errStyle, fmt.Sprintf("[%s] %s", sampleTimestamp(err.N()), err.Error()))
+		}
 		y++
 	}
 

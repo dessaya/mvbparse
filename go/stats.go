@@ -10,7 +10,7 @@ type Stats struct {
 	rate       []uint64
 	fcodeRates [16][]uint64
 	errorRate  []uint64
-	Errors     []Error
+	ErrorLog   []Error
 }
 
 func NewStats() Stats {
@@ -22,7 +22,7 @@ func NewStats() Stats {
 		rate:       newRate(),
 		errorRate:  newRate(),
 		fcodeRates: fcodeRates,
-		Errors:     make([]Error, 0, errorLogSize),
+		ErrorLog:   make([]Error, 0, errorLogSize),
 	}
 }
 
@@ -72,12 +72,12 @@ func (s *Stats) CountTelegram(t *Telegram) {
 }
 
 func (s *Stats) CountError(err Error) {
-	if len(s.Errors) == cap(s.Errors) {
-		dst := s.Errors[:len(s.Errors)-1]
-		src := s.Errors[1:]
+	if len(s.ErrorLog) == cap(s.ErrorLog) {
+		dst := s.ErrorLog[:len(s.ErrorLog)-1]
+		src := s.ErrorLog[1:]
 		copy(dst, src)
-		s.Errors = dst
+		s.ErrorLog = dst
 	}
-	s.Errors = append(s.Errors, err)
+	s.ErrorLog = append(s.ErrorLog, err)
 	rateCount(s.errorRate)
 }
