@@ -58,18 +58,29 @@ func (d *Dashboard) render() {
 
 	rate := d.stats.Rate()
 	drawTextLine(s, 1, y, w, defStyle, fmt.Sprintf(
-		"%s %d telegrams/s",
+		"%s %6d telegrams/s",
 		spark(rate),
 		rate[len(rate)-1],
 	))
 	y++
+
+	for i := range d.stats.fcodeRates {
+		rate := d.stats.FCodeRate(uint8(i))
+		drawTextLine(s, 1, y, w, defStyle, fmt.Sprintf(
+			"%s %6d telegrams/s [fcode %02x]",
+			spark(rate),
+			rate[len(rate)-1],
+			i,
+		))
+		y++
+	}
 
 	drawTextLine(s, 1, y, w, defStyle, strings.Repeat(string(tcell.RuneHLine), w))
 	y++
 
 	errorRate := d.stats.ErrorRate()
 	drawTextLine(s, 1, y, w, errStyle, fmt.Sprintf(
-		"%s %d errors/s",
+		"%s %6d errors/s",
 		spark(errorRate),
 		errorRate[len(errorRate)-1],
 	))
