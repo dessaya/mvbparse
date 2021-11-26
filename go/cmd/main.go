@@ -1,12 +1,13 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"mvb"
 	"os"
 	"runtime"
 	"runtime/pprof"
-	"time"
+
+	"golang.org/x/term"
 )
 
 const (
@@ -38,23 +39,13 @@ func main() {
 		}()
 	}
 
-	events := make(chan mvb.Event)
-	go mvb.NewDecoder(mvb.NewMVBStream(), events).Loop()
+	log.SetFlags(0)
 
-	n := 0
-	for {
-		ev, ok := <-events
-		if !ok {
-			break
-		}
-		t := time.Duration(float64(uint64(time.Second)*ev.N()) / mvb.SampleRate)
-		switch ev := ev.(type) {
-		case *mvb.Telegram:
-			//fmt.Printf("[%s] %+v\n", t, ev)
-			n++
-		case mvb.Error:
-			fmt.Printf("[%s] %s\n", t, ev.Error())
-		}
+	if term.IsTerminal(0) {
+		log.Fatalf("stdin must be a pipe")
 	}
-	fmt.Printf("processed %d telegrams\n", n)
+
+	events := make(chan mvb.Event)
+	go mvb.NewDecoder(mvb.NewMVBStream()).Loop(events)
+	mvb.NewDashboard().Loop(events)
 }

@@ -3,7 +3,6 @@ package mvb
 import (
 	"errors"
 	"fmt"
-	"io"
 	"math/bits"
 )
 
@@ -208,11 +207,10 @@ var (
 
 type MVBDecoder struct {
 	stream *MVBStream
-	out    chan<- Event
 }
 
-func NewDecoder(stream *MVBStream, out chan<- Event) *MVBDecoder {
-	return &MVBDecoder{stream, out}
+func NewDecoder(stream *MVBStream) *MVBDecoder {
+	return &MVBDecoder{stream}
 }
 
 func (d *MVBDecoder) ReadSymbol() (Symbol, error) {
@@ -430,7 +428,7 @@ func (d *MVBDecoder) ReadSlave(fcode *FCode) (Frame, error) {
 	return &SlaveFrame{data}, nil
 }
 
-func (d *MVBDecoder) Loop() {
+func (d *MVBDecoder) Loop(events chan<- Event) {
 	var master *MasterFrame
 	for {
 		var frame Frame
@@ -450,7 +448,7 @@ func (d *MVBDecoder) Loop() {
 		}
 		if frame.IsMaster() {
 			if master != nil {
-				d.out <- &Telegram{n: d.stream.N(), Master: master}
+				events <- &Telegram{n: d.stream.N(), Master: master}
 			}
 			master = frame.(*MasterFrame)
 		} else {
@@ -458,16 +456,12 @@ func (d *MVBDecoder) Loop() {
 				err = errors.New("unexpected slave frame")
 				goto onError
 			}
-			d.out <- &Telegram{n: d.stream.N(), Master: master, Slave: frame.(*SlaveFrame)}
+			events <- &Telegram{n: d.stream.N(), Master: master, Slave: frame.(*SlaveFrame)}
 			master = nil
 		}
 		continue
 
 	onError:
-		if errors.Is(err, io.EOF) {
-			close(d.out)
-			break
-		}
-		d.out <- Error{error: err, n: d.stream.N()}
+		events <- Error{error: err, n: d.stream.N()}
 	}
 }
