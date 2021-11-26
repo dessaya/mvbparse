@@ -328,8 +328,7 @@ void print_slave() {
 }
 
 int main(int argc, char *argv[]) {
-    FILE *f = fopen(argv[1], "rb");
-    input_init(f, argv[2][0] == '1');
+    input_init();
 
     while (1) {
         error_t err = read_master_slave();
@@ -337,7 +336,7 @@ int main(int argc, char *argv[]) {
             break;
         }
         if (err != NULL) {
-            //printf("%zd %f %s\n", input_n(), input_t(), err);
+            printf("%zd %f %s\n", input_n(), input_t(), err);
             //return 1;
         } else {
             print_master();
@@ -345,6 +344,5 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    fclose(f);
     return 0;
 }

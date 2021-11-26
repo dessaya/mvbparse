@@ -1,6 +1,7 @@
 package mvb
 
 import (
+	"encoding/hex"
 	"fmt"
 	"log"
 	"os"
@@ -9,9 +10,15 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
+const (
+	portPageSize = 16
+	maxPort      = 1<<12 - portPageSize
+)
+
 type Dashboard struct {
 	screen tcell.Screen
 	stats  Stats
+	port   uint16
 }
 
 func NewDashboard() *Dashboard {
@@ -83,6 +90,15 @@ func (d *Dashboard) render() {
 	drawHLine(s, y, w, defStyle)
 	y++
 
+	for port := d.port; port < d.port+portPageSize; port++ {
+		v := d.stats.Vars[port]
+		drawTextLine(s, 1, y, w, defStyle, fmt.Sprintf("port %03x = %s", port, hex.EncodeToString(v)))
+		y++
+	}
+
+	drawHLine(s, y, w, defStyle)
+	y++
+
 	errorRate := d.stats.ErrorRate()
 	drawTextLine(s, 1, y, w, errStyle, fmt.Sprintf(
 		"%s %6d errors/s",
@@ -100,6 +116,16 @@ func (d *Dashboard) render() {
 	}
 
 	s.Show()
+}
+
+func shiftPort(port uint16, d int) uint16 {
+	if int(port)+d < 0 {
+		return 0
+	}
+	if int(port)+d > maxPort {
+		return maxPort
+	}
+	return port + uint16(d)
 }
 
 func (d *Dashboard) Loop(mvbEvents chan Event) {
@@ -132,6 +158,22 @@ func (d *Dashboard) Loop(mvbEvents chan Event) {
 				switch {
 				case ev.Key() == tcell.KeyCtrlC || ev.Rune() == 'q' || ev.Rune() == 'Q':
 					d.quit()
+				case ev.Rune() == '+':
+					d.port = shiftPort(d.port, portPageSize*16)
+				case ev.Key() == tcell.KeyPgDn:
+					d.port = shiftPort(d.port, portPageSize)
+				case ev.Rune() == '-':
+					d.port = shiftPort(d.port, -portPageSize*16)
+				case ev.Key() == tcell.KeyPgUp:
+					d.port = shiftPort(d.port, -portPageSize)
+				case ev.Key() == tcell.KeyDown:
+					d.port = shiftPort(d.port, 1)
+				case ev.Key() == tcell.KeyUp:
+					d.port = shiftPort(d.port, -1)
+				case ev.Key() == tcell.KeyHome:
+					d.port = 0
+				case ev.Key() == tcell.KeyEnd:
+					d.port = maxPort
 				case ev.Key() == tcell.KeyCtrlL:
 					d.screen.Sync()
 				}

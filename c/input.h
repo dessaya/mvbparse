@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-void input_init(FILE *f, bool inverted);
+void input_init();
 
 bool input_skip(double seconds);
 bool input_wait_until(bool v);

@@ -15,8 +15,8 @@ func sampleTimestamp(n uint64) time.Duration {
 }
 
 const (
-	signalHigh = byte(0x02)
-	signalLow  = byte(0x00)
+	signalHigh = byte(0xff)
+	signalLow  = byte(0xfe)
 )
 
 const BufSize = SampleRate / 2

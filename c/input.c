@@ -5,9 +5,10 @@
 // samples per second
 #define SAMPLE_RATE 12000000
 
+#define SIGNAL_HIGH 0x02
+#define SIGNAL_LOW 0x00
+
 struct input {
-    FILE *f;
-    bool inverted;
     bool done;
     bool current;
     size_t n;
@@ -16,9 +17,8 @@ struct input {
 
 static struct input input;
 
-void input_init(FILE *f, bool inverted) {
-    input.f = f;
-    input.inverted = inverted;
+void input_init() {
+    freopen(NULL, "rb", stdin);
     input.done = false;
     input.current = false;
     input.n = 0;
@@ -30,15 +30,12 @@ static bool input_next_sample() {
         return false;
     }
     uint8_t b;
-    size_t n = fread(&b, 1, 1, input.f);
+    size_t n = fread(&b, 1, 1, stdin);
     if (n == 0) {
         input.done = true;
         return false;
     }
-    input.current = b == 0x02;
-    if (input.inverted) {
-        input.current = !input.current;
-    }
+    input.current = b == SIGNAL_HIGH;
     input.n++;
     if (input.trace) {
         printf("%zd %d\n", input.n, input.current);

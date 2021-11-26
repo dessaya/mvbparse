@@ -3,6 +3,7 @@ package mvb
 const (
 	sparkSize    = 10
 	errorLogSize = 10
+	varLogSize   = 20
 )
 
 type Stats struct {
@@ -11,6 +12,13 @@ type Stats struct {
 	fcodeRates [16][]uint64
 	errorRate  []uint64
 	ErrorLog   []Error
+
+	Vars map[uint16][]byte
+}
+
+type Var struct {
+	Port  uint16
+	Value []byte
 }
 
 func NewStats() Stats {
@@ -23,6 +31,7 @@ func NewStats() Stats {
 		errorRate:  newRate(),
 		fcodeRates: fcodeRates,
 		ErrorLog:   make([]Error, 0, errorLogSize),
+		Vars:       make(map[uint16][]byte),
 	}
 }
 
@@ -69,6 +78,14 @@ func (s *Stats) CountTelegram(t *Telegram) {
 	s.Total++
 	rateCount(s.rate)
 	rateCount(s.fcodeRates[t.Master.FCode])
+	fcode := fcodes[t.Master.FCode]
+	if fcode.MasterRequest == MR_PROCESS_DATA && t.Slave != nil {
+		s.SetVar(t.Master.Address, t.Slave.data)
+	}
+}
+
+func (s *Stats) SetVar(port uint16, value []byte) {
+	s.Vars[port] = value
 }
 
 func (s *Stats) CountError(err Error) {
