@@ -1,32 +1,51 @@
 package mvb
 
 type Stats struct {
-	Total  uint64
-	rate   []uint64
-	Errors []Error
+	Total     uint64
+	rate      []uint64
+	errorRate []uint64
+	Errors    []Error
 }
 
 func NewStats() Stats {
 	return Stats{
-		rate:   make([]uint64, 61),
-		Errors: make([]Error, 0, 10),
+		rate:      make([]uint64, 61),
+		errorRate: make([]uint64, 61),
+		Errors:    make([]Error, 0, 10),
 	}
 }
 
+func rateView(a []uint64) []uint64 {
+	return a[:len(a)-1]
+}
+
+func rateShift(a []uint64) {
+	dst := a[:len(a)-1]
+	src := a[1:]
+	copy(dst, src)
+	a[len(a)-1] = 0
+}
+
+func rateCount(a []uint64) {
+	a[len(a)-1]++
+}
+
 func (s *Stats) Rate() []uint64 {
-	return s.rate[:len(s.rate)-1]
+	return rateView(s.rate)
+}
+
+func (s *Stats) ErrorRate() []uint64 {
+	return rateView(s.errorRate)
 }
 
 func (s *Stats) Tick() {
-	dst := s.rate[:len(s.rate)-1]
-	src := s.rate[1:]
-	copy(dst, src)
-	s.rate[len(s.rate)-1] = 0
+	rateShift(s.rate)
+	rateShift(s.errorRate)
 }
 
 func (s *Stats) CountTelegram(t *Telegram) {
 	s.Total++
-	s.rate[len(s.rate)-1]++
+	rateCount(s.rate)
 }
 
 func (s *Stats) CountError(err Error) {
@@ -37,4 +56,5 @@ func (s *Stats) CountError(err Error) {
 		s.Errors = dst
 	}
 	s.Errors = append(s.Errors, err)
+	rateCount(s.errorRate)
 }

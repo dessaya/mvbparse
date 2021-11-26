@@ -23,6 +23,7 @@ func NewDashboard() *Dashboard {
 
 var (
 	defStyle = tcell.StyleDefault.Background(tcell.ColorReset).Foreground(tcell.ColorWhite)
+	errStyle = tcell.StyleDefault.Background(tcell.ColorReset).Foreground(tcell.ColorRed)
 )
 
 func (d *Dashboard) init() {
@@ -62,11 +63,20 @@ func (d *Dashboard) render() {
 		rate[len(rate)-1],
 	))
 	y++
+
 	drawTextLine(s, 1, y, w, defStyle, strings.Repeat(string(tcell.RuneHLine), w))
 	y++
 
+	errorRate := d.stats.ErrorRate()
+	drawTextLine(s, 1, y, w, errStyle, fmt.Sprintf(
+		"%s %d errors/s",
+		spark(errorRate),
+		errorRate[len(errorRate)-1],
+	))
+	y++
+
 	for _, err := range d.stats.Errors {
-		drawTextLine(s, 1, y, w, defStyle, fmt.Sprintf("[%s] %s", sampleTimestamp(err.N()), err.Error()))
+		drawTextLine(s, 1, y, w, errStyle, fmt.Sprintf("[%s] %s", sampleTimestamp(err.N()), err.Error()))
 		y++
 	}
 
