@@ -17,7 +17,7 @@ const (
 
 func main() {
 	if cpuProfile {
-		fp, err := os.Create("pprof.pprof")
+		fp, err := os.Create("cpu.pprof")
 		if err != nil {
 			panic(err)
 		}
@@ -30,7 +30,7 @@ func main() {
 	if blockProfile {
 		runtime.SetBlockProfileRate(1)
 		defer func() {
-			fp, err := os.Create("pprof.pprof")
+			fp, err := os.Create("block.pprof")
 			if err != nil {
 				panic(err)
 			}

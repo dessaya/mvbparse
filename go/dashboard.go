@@ -10,11 +10,6 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
-type Stats struct {
-	N      uint64
-	errors []Error
-}
-
 type Dashboard struct {
 	screen tcell.Screen
 	stats  Stats
@@ -22,9 +17,7 @@ type Dashboard struct {
 
 func NewDashboard() *Dashboard {
 	return &Dashboard{
-		stats: Stats{
-			errors: make([]Error, 0, 10),
-		},
+		stats: NewStats(),
 	}
 }
 
@@ -58,12 +51,23 @@ func (d *Dashboard) render() {
 	s.Clear()
 
 	w := 80
-	drawTextLine(s, 1, 1, w, defStyle, fmt.Sprintf("%d", d.stats.N))
-	drawTextLine(s, 1, 2, w, defStyle, strings.Repeat(string(tcell.RuneHLine), w))
+	y := 1
+	drawTextLine(s, 1, y, w, defStyle, fmt.Sprintf("Total: %d telegrams", d.stats.Total))
+	y++
 
-	for i, err := range d.stats.errors {
-		t := time.Duration(float64(uint64(time.Second)*err.N()) / SampleRate)
-		drawTextLine(s, 1, 3+i, w, defStyle, fmt.Sprintf("[%s] %s", t, err.Error()))
+	rate := d.stats.Rate()
+	drawTextLine(s, 1, y, w, defStyle, fmt.Sprintf(
+		"%s %d telegrams/s",
+		spark(rate),
+		rate[len(rate)-1],
+	))
+	y++
+	drawTextLine(s, 1, y, w, defStyle, strings.Repeat(string(tcell.RuneHLine), w))
+	y++
+
+	for _, err := range d.stats.Errors {
+		drawTextLine(s, 1, y, w, defStyle, fmt.Sprintf("[%s] %s", sampleTimestamp(err.N()), err.Error()))
+		y++
 	}
 
 	s.Show()
@@ -75,17 +79,21 @@ func (d *Dashboard) Loop(mvbEvents chan Event) {
 	tcellEvents := make(chan tcell.Event)
 	go d.screen.ChannelEvents(tcellEvents, make(chan struct{}))
 
-	ticker := time.Tick(100 * time.Millisecond)
+	renderTicker := time.Tick(100 * time.Millisecond)
+	secondsTicker := time.Tick(1 * time.Second)
 	dirty := false
 
 	d.render()
 	for {
 		select {
-		case <-ticker:
+		case <-renderTicker:
 			if dirty {
 				d.render()
-				dirty = false
 			}
+
+		case <-secondsTicker:
+			d.stats.Tick()
+			dirty = true
 
 		case ev := <-tcellEvents:
 			switch ev := ev.(type) {
@@ -103,18 +111,11 @@ func (d *Dashboard) Loop(mvbEvents chan Event) {
 		case ev := <-mvbEvents:
 			switch ev := ev.(type) {
 			case *Telegram:
-				d.stats.N++
-				dirty = true
+				d.stats.CountTelegram(ev)
 			case Error:
-				if len(d.stats.errors) == cap(d.stats.errors) {
-					dst := d.stats.errors[:len(d.stats.errors)-1]
-					src := d.stats.errors[1:]
-					copy(dst, src)
-					d.stats.errors = dst
-				}
-				d.stats.errors = append(d.stats.errors, ev)
-				dirty = true
+				d.stats.CountError(ev)
 			}
+			dirty = true
 		}
 	}
 }

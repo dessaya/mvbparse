@@ -4,10 +4,15 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"time"
 )
 
 // samples per second
 const SampleRate = 12_000_000
+
+func sampleTimestamp(n uint64) time.Duration {
+	return time.Duration(float64(uint64(time.Second)*n) / SampleRate)
+}
 
 const (
 	signalHigh = byte(0x02)
