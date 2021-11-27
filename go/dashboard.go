@@ -38,9 +38,10 @@ func decodePort(s string) (uint16, error) {
 }
 
 type Dashboard struct {
-	screen tcell.Screen
-	stats  Stats
-	port   uint16
+	screen        tcell.Screen
+	stats         Stats
+	port          uint16
+	captureOffset int
 }
 
 func NewDashboard() *Dashboard {
@@ -76,32 +77,43 @@ func (d *Dashboard) quit() {
 	os.Exit(0)
 }
 
+const screenWidth = 80
+
 func (d *Dashboard) render() {
 	s := d.screen
 	s.Clear()
+	switch {
+	case d.stats.Capture != nil:
+		d.renderCapture(d.stats.Capture)
+	default:
+		d.renderMain()
+	}
+	s.Show()
+}
 
-	w := 80
+func (d *Dashboard) renderMain() {
+	s := d.screen
 	y := 1
-	drawTextLine(s, 1, y, w, defStyle, fmt.Sprintf("Total: %d telegrams", d.stats.Total))
+	drawTextLine(s, 1, y, screenWidth, defStyle, fmt.Sprintf("Total: %d telegrams", d.stats.Total))
 	y++
 
-	drawHLine(s, y, w, defStyle)
+	drawHLine(s, y, screenWidth, defStyle)
 	y++
 
 	rate := d.stats.Rate()
-	drawTextLine(s, 1, y, w, defStyle, fmt.Sprintf(
+	drawTextLine(s, 1, y, screenWidth, defStyle, fmt.Sprintf(
 		"%s %6d telegrams/s",
 		spark(rate),
 		rate[len(rate)-1],
 	))
 	y++
 
-	drawHLine(s, y, w, defStyle)
+	drawHLine(s, y, screenWidth, defStyle)
 	y++
 
 	for i := range d.stats.fcodeRates {
 		rate := d.stats.FCodeRate(uint8(i))
-		drawTextLine(s, 1, y, w, defStyle, fmt.Sprintf(
+		drawTextLine(s, 1, y, screenWidth, defStyle, fmt.Sprintf(
 			"%s %6d telegrams/s [fcode %02x]",
 			spark(rate),
 			rate[len(rate)-1],
@@ -110,20 +122,20 @@ func (d *Dashboard) render() {
 		y++
 	}
 
-	drawHLine(s, y, w, defStyle)
+	drawHLine(s, y, screenWidth, defStyle)
 	y++
 
 	for port := d.port; port < d.port+portPageSize; port++ {
 		v := d.stats.Vars[port]
-		drawTextLine(s, 1, y, w, defStyle, fmt.Sprintf("port %03x = %s", port, hex.EncodeToString(v)))
+		drawTextLine(s, 1, y, screenWidth, defStyle, fmt.Sprintf("port %03x = %s", port, hex.EncodeToString(v)))
 		y++
 	}
 
-	drawHLine(s, y, w, defStyle)
+	drawHLine(s, y, screenWidth, defStyle)
 	y++
 
 	errorRate := d.stats.ErrorRate()
-	drawTextLine(s, 1, y, w, errStyle, fmt.Sprintf(
+	drawTextLine(s, 1, y, screenWidth, errStyle, fmt.Sprintf(
 		"%s %6d errors/s",
 		spark(errorRate),
 		errorRate[len(errorRate)-1],
@@ -133,7 +145,7 @@ func (d *Dashboard) render() {
 	for i := 0; i < cap(d.stats.ErrorLog); i++ {
 		if i < len(d.stats.ErrorLog) {
 			err := d.stats.ErrorLog[i]
-			drawTextLine(s, 1, y, w, errStyle, fmt.Sprintf("[%s] %s", sampleTimestamp(err.N()), err.Error()))
+			drawTextLine(s, 1, y, screenWidth, errStyle, fmt.Sprintf("[%s] %s", sampleTimestamp(err.N()), err.Error()))
 		}
 		y++
 	}
@@ -141,7 +153,25 @@ func (d *Dashboard) render() {
 	s.Show()
 }
 
-func shiftPort(port uint16, d int) uint16 {
+func (d *Dashboard) renderCapture(c *Capture) {
+	s := d.screen
+
+	y := 1 - d.captureOffset
+	for _, port := range c.SeenPorts {
+		drawTextLine(s, 1, y, screenWidth, defStyle, fmt.Sprintf("port %03x", port))
+		y++
+		for _, change := range c.Vars[uint16(port)] {
+			drawTextLine(s, 1, y, screenWidth, defStyle, fmt.Sprintf(
+				"  [%s] %x",
+				sampleTimestamp(change.N),
+				hex.EncodeToString(change.Value),
+			))
+			y++
+		}
+	}
+}
+
+func addPortOffset(port uint16, d int) uint16 {
 	if int(port)+d < 0 {
 		return 0
 	}
@@ -149,6 +179,13 @@ func shiftPort(port uint16, d int) uint16 {
 		return maxPort
 	}
 	return port + uint16(d)
+}
+
+func addCaptureOffset(o int, d int) int {
+	if o+d < 0 {
+		return 0
+	}
+	return o + d
 }
 
 func (d *Dashboard) Loop(mvbEvents chan Event) {
@@ -181,24 +218,14 @@ func (d *Dashboard) Loop(mvbEvents chan Event) {
 				switch {
 				case ev.Key() == tcell.KeyCtrlC || ev.Rune() == 'q' || ev.Rune() == 'Q':
 					d.quit()
-				case ev.Rune() == '+':
-					d.port = shiftPort(d.port, portPageSize*16)
-				case ev.Key() == tcell.KeyPgDn:
-					d.port = shiftPort(d.port, portPageSize)
-				case ev.Rune() == '-':
-					d.port = shiftPort(d.port, -portPageSize*16)
-				case ev.Key() == tcell.KeyPgUp:
-					d.port = shiftPort(d.port, -portPageSize)
-				case ev.Key() == tcell.KeyDown:
-					d.port = shiftPort(d.port, 1)
-				case ev.Key() == tcell.KeyUp:
-					d.port = shiftPort(d.port, -1)
-				case ev.Key() == tcell.KeyHome:
-					d.port = 0
-				case ev.Key() == tcell.KeyEnd:
-					d.port = maxPort
+				case ev.Rune() == 'c' || ev.Rune() == 'C':
+					d.stats.StartStopCapture()
+					d.captureOffset = 0
+				case ev.Key() == tcell.KeyESC:
+					d.stats.DiscardCapture()
 				case ev.Key() == tcell.KeyCtrlL:
 					d.screen.Sync()
+				case d.tryScroll(ev):
 				}
 			}
 
@@ -212,4 +239,55 @@ func (d *Dashboard) Loop(mvbEvents chan Event) {
 			dirty = true
 		}
 	}
+}
+
+func (d *Dashboard) tryScroll(ev *tcell.EventKey) bool {
+	switch {
+	case d.stats.Capture != nil:
+		return d.tryScrollCapture(ev)
+	default:
+		return d.tryScrollPort(ev)
+	}
+}
+
+func (d *Dashboard) tryScrollPort(ev *tcell.EventKey) bool {
+	switch {
+	case ev.Rune() == '+':
+		d.port = addPortOffset(d.port, portPageSize*16)
+	case ev.Key() == tcell.KeyPgDn:
+		d.port = addPortOffset(d.port, portPageSize)
+	case ev.Rune() == '-':
+		d.port = addPortOffset(d.port, -portPageSize*16)
+	case ev.Key() == tcell.KeyPgUp:
+		d.port = addPortOffset(d.port, -portPageSize)
+	case ev.Key() == tcell.KeyDown:
+		d.port = addPortOffset(d.port, 1)
+	case ev.Key() == tcell.KeyUp:
+		d.port = addPortOffset(d.port, -1)
+	case ev.Key() == tcell.KeyHome:
+		d.port = 0
+	case ev.Key() == tcell.KeyEnd:
+		d.port = maxPort
+	default:
+		return false
+	}
+	return true
+}
+
+func (d *Dashboard) tryScrollCapture(ev *tcell.EventKey) bool {
+	switch {
+	case ev.Key() == tcell.KeyPgDn:
+		d.captureOffset = addCaptureOffset(d.captureOffset, 10)
+	case ev.Key() == tcell.KeyPgUp:
+		d.captureOffset = addCaptureOffset(d.captureOffset, -10)
+	case ev.Key() == tcell.KeyDown:
+		d.captureOffset = addCaptureOffset(d.captureOffset, 1)
+	case ev.Key() == tcell.KeyUp:
+		d.captureOffset = addCaptureOffset(d.captureOffset, -1)
+	case ev.Key() == tcell.KeyHome:
+		d.captureOffset = 0
+	default:
+		return false
+	}
+	return true
 }

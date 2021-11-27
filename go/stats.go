@@ -1,5 +1,7 @@
 package mvb
 
+import "sort"
+
 const (
 	sparkSize    = 10
 	errorLogSize = 10
@@ -14,6 +16,8 @@ type Stats struct {
 	ErrorLog   []Error
 
 	Vars map[uint16][]byte
+
+	Capture *Capture
 }
 
 type Var struct {
@@ -80,12 +84,15 @@ func (s *Stats) CountTelegram(t *Telegram) {
 	rateCount(s.fcodeRates[t.Master.FCode])
 	fcode := fcodes[t.Master.FCode]
 	if fcode.MasterRequest == MR_PROCESS_DATA && t.Slave != nil {
-		s.SetVar(t.Master.Address, t.Slave.data)
+		s.SetVar(t.N(), t.Master.Address, t.Slave.data)
 	}
 }
 
-func (s *Stats) SetVar(port uint16, value []byte) {
+func (s *Stats) SetVar(n uint64, port uint16, value []byte) {
 	s.Vars[port] = value
+	if s.Capture != nil && !s.Capture.Stopped {
+		s.Capture.Add(n, port, value)
+	}
 }
 
 func (s *Stats) CountError(err Error) {
@@ -97,4 +104,41 @@ func (s *Stats) CountError(err Error) {
 	}
 	s.ErrorLog = append(s.ErrorLog, err)
 	rateCount(s.errorRate)
+}
+
+func (s *Stats) StartStopCapture() {
+	if s.Capture != nil && !s.Capture.Stopped {
+		s.Capture.Stopped = true
+	} else {
+		s.Capture = &Capture{
+			Vars: make(map[uint16][]VarChange),
+		}
+	}
+}
+
+func (s *Stats) DiscardCapture() {
+	s.Capture = nil
+}
+
+type Capture struct {
+	Stopped   bool
+	Vars      map[uint16][]VarChange
+	SeenPorts []int
+}
+
+type VarChange struct {
+	N     uint64
+	Value []byte
+}
+
+func (c *Capture) Add(n uint64, port uint16, value []byte) {
+	_, seen := c.Vars[port]
+	if !seen {
+		i := sort.SearchInts(c.SeenPorts, int(port))
+		c.SeenPorts = append(c.SeenPorts, 0)
+		copy(c.SeenPorts[i+1:], c.SeenPorts[i:])
+		c.SeenPorts[i] = int(port)
+	}
+
+	c.Vars[port] = append(c.Vars[port], VarChange{N: n, Value: value})
 }
