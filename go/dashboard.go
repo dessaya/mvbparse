@@ -42,6 +42,7 @@ type Dashboard struct {
 	stats         Stats
 	port          uint16
 	captureOffset int
+	portFilter    *portFilter
 }
 
 func NewDashboard() *Dashboard {
@@ -91,9 +92,14 @@ func (d *Dashboard) render() {
 	s.Show()
 }
 
+func (d *Dashboard) showPort(y int, port uint16) {
+	v := d.stats.Vars[port]
+	drawTextLine(d.screen, 1, y, screenWidth, defStyle, fmt.Sprintf("port %03x = %s", port, hex.EncodeToString(v)))
+}
+
 func (d *Dashboard) renderMain() {
 	s := d.screen
-	y := 1
+	y := 0
 	drawTextLine(s, 1, y, screenWidth, defStyle, fmt.Sprintf("Total: %d telegrams", d.stats.Total))
 	y++
 
@@ -125,10 +131,14 @@ func (d *Dashboard) renderMain() {
 	drawHLine(s, y, screenWidth, defStyle)
 	y++
 
-	for port := d.port; port < d.port+portPageSize; port++ {
-		v := d.stats.Vars[port]
-		drawTextLine(s, 1, y, screenWidth, defStyle, fmt.Sprintf("port %03x = %s", port, hex.EncodeToString(v)))
+	if d.portFilter != nil {
+		d.showPort(y, d.portFilter.port())
 		y++
+	} else {
+		for port := d.port; port < d.port+portPageSize; port++ {
+			d.showPort(y, port)
+			y++
+		}
 	}
 
 	drawHLine(s, y, screenWidth, defStyle)
@@ -154,21 +164,28 @@ func (d *Dashboard) renderMain() {
 }
 
 func (d *Dashboard) renderCapture(c *Capture) {
-	s := d.screen
-
-	y := 1 - d.captureOffset
-	for _, port := range c.SeenPorts {
-		drawTextLine(s, 1, y, screenWidth, defStyle, fmt.Sprintf("port %03x", port))
-		y++
-		for _, change := range c.Vars[uint16(port)] {
-			drawTextLine(s, 1, y, screenWidth, defStyle, fmt.Sprintf(
-				"  [%s] %x",
-				sampleTimestamp(change.N),
-				hex.EncodeToString(change.Value),
-			))
-			y++
+	y := -d.captureOffset
+	if d.portFilter != nil {
+		d.renderPortCapture(y, d.portFilter.port())
+	} else {
+		for _, port := range c.SeenPorts {
+			y = d.renderPortCapture(y, uint16(port))
 		}
 	}
+}
+
+func (d *Dashboard) renderPortCapture(y int, port uint16) int {
+	drawTextLine(d.screen, 1, y, screenWidth, defStyle, fmt.Sprintf("port %03x", port))
+	y++
+	for _, change := range d.stats.Capture.Vars[port] {
+		drawTextLine(d.screen, 1, y, screenWidth, defStyle, fmt.Sprintf(
+			"  [%s] %x",
+			sampleTimestamp(change.N),
+			hex.EncodeToString(change.Value),
+		))
+		y++
+	}
+	return y
 }
 
 func addPortOffset(port uint16, d int) uint16 {
@@ -218,14 +235,20 @@ func (d *Dashboard) Loop(mvbEvents chan Event) {
 				switch {
 				case ev.Key() == tcell.KeyCtrlC || ev.Rune() == 'q' || ev.Rune() == 'Q':
 					d.quit()
-				case ev.Rune() == 'c' || ev.Rune() == 'C':
+				case ev.Rune() == ' ':
 					d.stats.StartStopCapture()
 					d.captureOffset = 0
 				case ev.Key() == tcell.KeyESC:
-					d.stats.DiscardCapture()
+					if d.portFilter != nil {
+						d.portFilter = nil
+					} else {
+						d.stats.DiscardCapture()
+					}
 				case ev.Key() == tcell.KeyCtrlL:
 					d.screen.Sync()
 				case d.tryScroll(ev):
+				case d.tryPortFilter(ev):
+					d.captureOffset = 0
 				}
 			}
 
@@ -288,6 +311,39 @@ func (d *Dashboard) tryScrollCapture(ev *tcell.EventKey) bool {
 		d.captureOffset = 0
 	default:
 		return false
+	}
+	return true
+}
+
+type portFilter struct {
+	hex string
+}
+
+func (p *portFilter) port() uint16 {
+	n, err := strconv.ParseInt(p.hex, 16, 12)
+	if err != nil {
+		return 0
+	}
+	return uint16(n)
+}
+
+func (d *Dashboard) tryPortFilter(ev *tcell.EventKey) bool {
+	if ev.Rune() == '/' {
+		d.portFilter = &portFilter{}
+		return true
+	}
+	pf := d.portFilter
+	if pf == nil {
+		return false
+	}
+	s := string(ev.Rune())
+	_, err := strconv.ParseInt(s, 16, 8)
+	if err != nil {
+		return false
+	}
+	pf.hex += s
+	if len(pf.hex) > 3 {
+		pf.hex = pf.hex[1:]
 	}
 	return true
 }
