@@ -45,6 +45,8 @@ func main() {
 		log.Fatalf("stdin must be a pipe")
 	}
 
+	mvb.InitFlags()
+
 	events := make(chan mvb.Event)
 	go mvb.NewDecoder(mvb.NewMVBStream()).Loop(events)
 	mvb.NewDashboard().Loop(events)

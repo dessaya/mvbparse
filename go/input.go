@@ -2,6 +2,10 @@ package mvb
 
 import (
 	"bytes"
+	"encoding/hex"
+	"errors"
+	"flag"
+	"fmt"
 	"io"
 	"os"
 	"time"
@@ -14,10 +18,35 @@ func sampleTimestamp(n uint64) time.Duration {
 	return time.Duration(float64(uint64(time.Second)*n) / SampleRate)
 }
 
-const (
+var (
 	signalHigh = byte(0xff)
 	signalLow  = byte(0xfe)
 )
+
+func InitFlags() {
+	fs := flag.NewFlagSet("input", flag.ExitOnError)
+	fs.Func("high", "byte value for input = high", func(s string) (err error) {
+		signalHigh, err = decodeByte(s)
+		return
+	})
+	fs.Func("low", "byte value for input = low", func(s string) (err error) {
+		signalLow, err = decodeByte(s)
+		return
+	})
+	fs.Parse(os.Args[1:])
+	fmt.Printf("%x - %x %+v\n", signalHigh, signalLow, os.Args)
+}
+
+func decodeByte(s string) (byte, error) {
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		return 0, err
+	}
+	if len(b) != 1 {
+		return 0, errors.New("cannot decode byte")
+	}
+	return b[0], nil
+}
 
 const BufSize = SampleRate / 2
 
