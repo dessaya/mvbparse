@@ -2,9 +2,11 @@ package mvb
 
 import (
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
@@ -15,6 +17,26 @@ const (
 	maxPort      = 1<<12 - portPageSize
 )
 
+var initialPort uint16 = 0
+
+func initDashboardFlags() {
+	flag.Func("port", "initial port offset", func(s string) (err error) {
+		initialPort, err = decodePort(s)
+		return
+	})
+}
+
+func decodePort(s string) (uint16, error) {
+	n, err := strconv.ParseUint(s, 16, 12)
+	if err != nil {
+		return 0, err
+	}
+	if n > maxPort {
+		return maxPort, nil
+	}
+	return uint16(n), nil
+}
+
 type Dashboard struct {
 	screen tcell.Screen
 	stats  Stats
@@ -24,6 +46,7 @@ type Dashboard struct {
 func NewDashboard() *Dashboard {
 	return &Dashboard{
 		stats: NewStats(),
+		port:  uint16(initialPort),
 	}
 }
 

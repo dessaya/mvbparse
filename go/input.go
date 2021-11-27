@@ -2,12 +2,10 @@ package mvb
 
 import (
 	"bytes"
-	"encoding/hex"
-	"errors"
 	"flag"
-	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -23,29 +21,23 @@ var (
 	signalLow  = byte(0xfe)
 )
 
-func InitFlags() {
-	fs := flag.NewFlagSet("input", flag.ExitOnError)
-	fs.Func("high", "byte value for input = high", func(s string) (err error) {
+func initInputFlags() {
+	flag.Func("high", "byte value for input = high", func(s string) (err error) {
 		signalHigh, err = decodeByte(s)
 		return
 	})
-	fs.Func("low", "byte value for input = low", func(s string) (err error) {
+	flag.Func("low", "byte value for input = low", func(s string) (err error) {
 		signalLow, err = decodeByte(s)
 		return
 	})
-	fs.Parse(os.Args[1:])
-	fmt.Printf("%x - %x %+v\n", signalHigh, signalLow, os.Args)
 }
 
 func decodeByte(s string) (byte, error) {
-	b, err := hex.DecodeString(s)
+	n, err := strconv.ParseUint(s, 16, 8)
 	if err != nil {
 		return 0, err
 	}
-	if len(b) != 1 {
-		return 0, errors.New("cannot decode byte")
-	}
-	return b[0], nil
+	return byte(n), nil
 }
 
 const BufSize = SampleRate / 2
