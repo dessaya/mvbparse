@@ -83,6 +83,9 @@ func (s *Stats) CountTelegram(t *Telegram) {
 	rateCount(s.rate)
 	fcode := fcodes[t.Master.FCode]
 	rateCount(s.mrRates[fcode.MasterRequest])
+	if s.Capture != nil && !s.Capture.Stopped {
+		s.Capture.AddTelegram(t)
+	}
 	if fcode.MasterRequest == MR_PROCESS_DATA && t.Slave != nil {
 		s.SetVar(t.N(), t.Master.Address, t.Slave.data)
 	}
@@ -91,7 +94,7 @@ func (s *Stats) CountTelegram(t *Telegram) {
 func (s *Stats) SetVar(n uint64, port uint16, value []byte) {
 	s.Vars[port] = value
 	if s.Capture != nil && !s.Capture.Stopped {
-		s.Capture.Add(n, port, value)
+		s.Capture.SetVar(n, port, value)
 	}
 }
 
@@ -121,6 +124,7 @@ func (s *Stats) DiscardCapture() {
 }
 
 type Capture struct {
+	Telegrams []*Telegram
 	Stopped   bool
 	Vars      map[uint16][]VarChange
 	SeenPorts []int
@@ -131,7 +135,11 @@ type VarChange struct {
 	Value []byte
 }
 
-func (c *Capture) Add(n uint64, port uint16, value []byte) {
+func (c *Capture) AddTelegram(t *Telegram) {
+	c.Telegrams = append(c.Telegrams, t)
+}
+
+func (c *Capture) SetVar(n uint64, port uint16, value []byte) {
 	_, seen := c.Vars[port]
 	if !seen {
 		i := sort.SearchInts(c.SeenPorts, int(port))

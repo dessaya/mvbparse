@@ -1,6 +1,7 @@
 package mvb
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/bits"
@@ -76,21 +77,21 @@ const (
 func (m MasterRequest) String() string {
 	switch m {
 	case MR_PROCESS_DATA:
-		return "[00-04] PROCESS_DATA"
+		return "PROCESS_DATA"
 	case MR_RESERVED:
-		return "[05-07/10-11] RESERVED"
+		return "RESERVED"
 	case MR_MASTERSHIP_TRANSFER:
-		return "[08] MASTERSHIP_TRANSFER"
+		return "MASTERSHIP_TRANSFER"
 	case MR_GENERAL_EVENT:
-		return "[09] GENERAL_EVENT"
+		return "GENERAL_EVENT"
 	case MR_MESSAGE_DATA:
-		return "[12] MESSAGE_DATA"
+		return "MESSAGE_DATA"
 	case MR_GROUP_EVENT:
-		return "[13] GROUP_EVENT"
+		return "GROUP_EVENT"
 	case MR_SINGLE_EVENT:
-		return "[14] SINGLE_EVENT"
+		return "SINGLE_EVENT"
 	case MR_DEVICE_STATUS:
-		return "[15] DEVICE_STATUS"
+		return "DEVICE_STATUS"
 	}
 	panic("unreachable")
 }
@@ -145,14 +146,25 @@ type Frame interface {
 }
 
 type MasterFrame struct {
-	FCode   uint8
-	Address uint16
+	FCode   uint8  //  4 bits
+	Address uint16 // 12 bits
 }
 
 func (m *MasterFrame) IsMaster() bool { return true }
 
+func (m *MasterFrame) String() string {
+	return fmt.Sprintf("%19s (%02d) -> %03x", fcodes[m.FCode].MasterRequest, m.FCode, m.Address)
+}
+
 type SlaveFrame struct {
 	data []byte
+}
+
+func (s *SlaveFrame) String() string {
+	if s == nil {
+		return "-"
+	}
+	return hex.EncodeToString(s.data)
 }
 
 func (s *SlaveFrame) IsMaster() bool { return false }
@@ -161,6 +173,15 @@ type Telegram struct {
 	n      uint64
 	Master *MasterFrame
 	Slave  *SlaveFrame
+}
+
+func (t *Telegram) String() string {
+	return fmt.Sprintf(
+		" %.3f %s - %s",
+		sampleTimestamp(t.n).Seconds(),
+		t.Master,
+		t.Slave,
+	)
 }
 
 func (t *Telegram) N() uint64 {

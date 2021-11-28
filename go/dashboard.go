@@ -37,10 +37,18 @@ func decodePort(s string) (uint16, error) {
 	return uint16(n), nil
 }
 
+type CaptureMode bool
+
+const (
+	CaptureModeTelegrams = false
+	CaptureModeVars      = true
+)
+
 type Dashboard struct {
 	screen        tcell.Screen
 	stats         Stats
 	port          uint16
+	captureMode   CaptureMode
 	captureOffset int
 	portFilter    *portFilter
 	paused        bool
@@ -166,7 +174,7 @@ func (d *Dashboard) renderMain() {
 		y++
 		if annotate {
 			trace := traceSamples(err.samples)
-			drawTextLine(s, 1, y, len(trace), errStyle, fmt.Sprintf(
+			drawTextLine(s, 1, y, len(trace)+1, errStyle, fmt.Sprintf(
 				"%s",
 				trace,
 			))
@@ -178,6 +186,24 @@ func (d *Dashboard) renderMain() {
 }
 
 func (d *Dashboard) renderCapture(c *Capture) {
+	switch d.captureMode {
+	case CaptureModeTelegrams:
+		d.renderCaptureTelegrams(c)
+	case CaptureModeVars:
+		d.renderCaptureVars(c)
+	}
+}
+
+func (d *Dashboard) renderCaptureTelegrams(c *Capture) {
+	y := -d.captureOffset
+	for _, t := range c.Telegrams {
+		s := t.String()
+		drawTextLine(d.screen, 1, y, len(s)+1, defStyle, s)
+		y++
+	}
+}
+
+func (d *Dashboard) renderCaptureVars(c *Capture) {
 	y := -d.captureOffset
 	if d.portFilter != nil {
 		d.renderPortCapture(y, d.portFilter.port())
@@ -249,6 +275,9 @@ func (d *Dashboard) Loop(mvbEvents chan Event) {
 				switch {
 				case ev.Key() == tcell.KeyCtrlC || ev.Rune() == 'q' || ev.Rune() == 'Q':
 					d.quit()
+				case ev.Rune() == 'm' || ev.Rune() == 'M':
+					d.captureMode = !d.captureMode
+					d.captureOffset = 0
 				case ev.Rune() == 'p' || ev.Rune() == 'P':
 					d.paused = !d.paused
 				case ev.Rune() == ' ':
