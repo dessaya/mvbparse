@@ -7,7 +7,8 @@ import (
 )
 
 func drawHLine(s tcell.Screen, y int, style tcell.Style) {
-	drawText(s, 0, y, style, strings.Repeat(string(tcell.RuneHLine), 80))
+	w, _ := s.Size()
+	drawText(s, 0, y, style, strings.Repeat(string(tcell.RuneHLine), w))
 }
 
 func drawTextBox(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string) {

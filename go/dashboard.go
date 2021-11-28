@@ -109,7 +109,8 @@ func (d *Dashboard) showPort(y int, port uint16) {
 }
 
 func (d *Dashboard) renderHeader(style tcell.Style, s string) {
-	drawText(d.screen, 0, 0, style, fmt.Sprintf("%-80s", s))
+	w, _ := d.screen.Size()
+	drawText(d.screen, 0, 0, style, fmt.Sprintf(fmt.Sprintf("%%-%ds", w), s))
 }
 
 func (d *Dashboard) renderMain() {
