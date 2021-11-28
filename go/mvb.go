@@ -55,7 +55,31 @@ const (
 	MR_GROUP_EVENT
 	MR_SINGLE_EVENT
 	MR_DEVICE_STATUS
+
+	MR_AMOUNT
 )
+
+func (m MasterRequest) String() string {
+	switch m {
+	case MR_PROCESS_DATA:
+		return "[00-04] PROCESS_DATA"
+	case MR_RESERVED:
+		return "[05-07/10-11] RESERVED"
+	case MR_MASTERSHIP_TRANSFER:
+		return "[08] MASTERSHIP_TRANSFER"
+	case MR_GENERAL_EVENT:
+		return "[09] GENERAL_EVENT"
+	case MR_MESSAGE_DATA:
+		return "[12] MESSAGE_DATA"
+	case MR_GROUP_EVENT:
+		return "[13] GROUP_EVENT"
+	case MR_SINGLE_EVENT:
+		return "[14] SINGLE_EVENT"
+	case MR_DEVICE_STATUS:
+		return "[15] DEVICE_STATUS"
+	}
+	panic("unreachable")
+}
 
 type SlaveFrameSource uint8
 
@@ -96,6 +120,10 @@ type FCode struct {
 	SlaveFrameSize        uint
 	SlaveResponse         SlaveResponse
 	SlaveFrameDestination SlaveFrameDestination
+}
+
+func (f *FCode) String() string {
+	return fmt.Sprintf("[fcode %02x]", f.N)
 }
 
 type Frame interface {

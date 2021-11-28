@@ -117,13 +117,13 @@ func (d *Dashboard) renderMain() {
 	drawHLine(s, y, screenWidth, defStyle)
 	y++
 
-	for i := range d.stats.fcodeRates {
-		rate := d.stats.FCodeRate(uint8(i))
+	for i := range d.stats.mrRates {
+		rate := d.stats.MRRate(MasterRequest(i))
 		drawTextLine(s, 1, y, screenWidth, defStyle, fmt.Sprintf(
-			"%s %6d telegrams/s [fcode %02x]",
+			"%s %6d telegrams/s %s",
 			spark(rate),
 			rate[len(rate)-1],
-			i,
+			MasterRequest(i),
 		))
 		y++
 	}
