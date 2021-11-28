@@ -19,6 +19,7 @@ func sampleTimestamp(n uint64) time.Duration {
 var (
 	signalHigh = byte(0xff)
 	signalLow  = byte(0xfe)
+	annotate   = false
 )
 
 func initInputFlags() {
@@ -30,6 +31,7 @@ func initInputFlags() {
 		signalLow, err = decodeByte(s)
 		return
 	})
+	flag.BoolVar(&annotate, "annotate", annotate, "activate annotations")
 }
 
 func decodeByte(s string) (byte, error) {
@@ -49,6 +51,8 @@ type BufferedReader struct {
 	cur *buffer
 
 	n uint64
+
+	samples *Samples
 }
 
 type buffer struct {
@@ -59,8 +63,9 @@ type buffer struct {
 func NewDoubleBufferedReader(r io.Reader) *BufferedReader {
 	var bufs [2]buffer
 	d := &BufferedReader{
-		ready: make(chan interface{}, len(bufs)),
-		done:  make(chan *buffer, len(bufs)),
+		ready:   make(chan interface{}, len(bufs)),
+		done:    make(chan *buffer, len(bufs)),
+		samples: NewSamples(64),
 	}
 	for i := range bufs {
 		d.done <- &bufs[i]
@@ -112,6 +117,9 @@ func (d *BufferedReader) ReadByte() (byte, error) {
 	if len(d.cur.buf) == 0 {
 		d.disposeBuffer()
 	}
+	if annotate {
+		d.samples.PushByte(b)
+	}
 	return b, nil
 }
 
@@ -124,6 +132,11 @@ func (d *BufferedReader) Discard(remaining int) error {
 		n := remaining
 		if n > len(d.cur.buf) {
 			n = len(d.cur.buf)
+		}
+		if annotate {
+			for _, b := range d.cur.buf[:n] {
+				d.samples.PushByte(b)
+			}
 		}
 		d.cur.buf = d.cur.buf[n:]
 		d.n += uint64(n)
@@ -144,8 +157,18 @@ func (d *BufferedReader) DiscardUntil(b byte) error {
 		i := bytes.IndexByte(d.cur.buf, b)
 		if i >= 0 {
 			d.n += uint64(i)
+			if annotate {
+				for _, b := range d.cur.buf[:i] {
+					d.samples.PushByte(b)
+				}
+			}
 			d.cur.buf = d.cur.buf[i:]
 			return nil
+		}
+		if annotate {
+			for _, b := range d.cur.buf {
+				d.samples.PushByte(b)
+			}
 		}
 		d.n += uint64(len(d.cur.buf))
 		d.disposeBuffer()
@@ -227,4 +250,17 @@ func (s *MVBStream) V() bool {
 
 func (s *MVBStream) N() uint64 {
 	return s.r.n
+}
+
+func (s *MVBStream) Annotate(text string) {
+	if annotate {
+		s.r.samples.Annotate(text)
+	}
+}
+
+func (s *MVBStream) GetSamples() []Sample {
+	if annotate {
+		return s.r.samples.Get()
+	}
+	return nil
 }

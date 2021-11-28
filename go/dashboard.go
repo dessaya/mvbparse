@@ -43,6 +43,7 @@ type Dashboard struct {
 	port          uint16
 	captureOffset int
 	portFilter    *portFilter
+	paused        bool
 }
 
 func NewDashboard() *Dashboard {
@@ -152,12 +153,22 @@ func (d *Dashboard) renderMain() {
 	))
 	y++
 
-	for i := 0; i < cap(d.stats.ErrorLog); i++ {
-		if i < len(d.stats.ErrorLog) {
-			err := d.stats.ErrorLog[i]
-			drawTextLine(s, 1, y, screenWidth, errStyle, fmt.Sprintf("[%s] %s", sampleTimestamp(err.N()), err.Error()))
-		}
+	for i := 0; i < len(d.stats.ErrorLog); i++ {
+		err := d.stats.ErrorLog[i]
+		drawTextLine(s, 1, y, screenWidth, errStyle, fmt.Sprintf(
+			"[%s] %s",
+			sampleTimestamp(err.N()),
+			err.Error(),
+		))
 		y++
+		if annotate {
+			trace := traceSamples(err.samples)
+			drawTextLine(s, 1, y, len(trace), errStyle, fmt.Sprintf(
+				"%s",
+				trace,
+			))
+			y++
+		}
 	}
 
 	s.Show()
@@ -219,7 +230,7 @@ func (d *Dashboard) Loop(mvbEvents chan Event) {
 	for {
 		select {
 		case <-renderTicker:
-			if dirty {
+			if !d.paused && dirty {
 				d.render()
 			}
 
@@ -235,6 +246,8 @@ func (d *Dashboard) Loop(mvbEvents chan Event) {
 				switch {
 				case ev.Key() == tcell.KeyCtrlC || ev.Rune() == 'q' || ev.Rune() == 'Q':
 					d.quit()
+				case ev.Rune() == 'p' || ev.Rune() == 'P':
+					d.paused = !d.paused
 				case ev.Rune() == ' ':
 					d.stats.StartStopCapture()
 					d.captureOffset = 0

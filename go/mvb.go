@@ -34,6 +34,20 @@ const (
 	NL                   // LOW  LOW
 )
 
+func (s Symbol) String() string {
+	switch s {
+	case BIT_0:
+		return "0"
+	case BIT_1:
+		return "1"
+	case NH:
+		return "NH"
+	case NL:
+		return "NL"
+	}
+	panic("unreachable")
+}
+
 type AddressType uint8
 
 const (
@@ -159,7 +173,8 @@ func (t *Telegram) IsError() bool {
 
 type Error struct {
 	error
-	n uint64
+	n       uint64
+	samples []Sample
 }
 
 func (err Error) N() uint64 {
@@ -238,7 +253,9 @@ type MVBDecoder struct {
 }
 
 func NewDecoder(stream *MVBStream) *MVBDecoder {
-	return &MVBDecoder{stream}
+	return &MVBDecoder{
+		stream: stream,
+	}
 }
 
 func (d *MVBDecoder) ReadSymbol() (Symbol, error) {
@@ -250,6 +267,7 @@ func (d *MVBDecoder) ReadSymbol() (Symbol, error) {
 		if v2 {
 			s = BIT_0
 		}
+		d.stream.Annotate(s.String())
 		// edge detected; we should be at BT / 2; wait for BT * 3/4
 		_, err := d.stream.WaitUntilElapsed(BT34_SAMPLES)
 		if err != nil {
@@ -262,6 +280,7 @@ func (d *MVBDecoder) ReadSymbol() (Symbol, error) {
 	if v2 {
 		s = NH
 	}
+	d.stream.Annotate(s.String())
 	_, err = d.stream.WaitUntilElapsed(BT2_SAMPLES)
 	if err != nil {
 		return 0, err
@@ -270,25 +289,25 @@ func (d *MVBDecoder) ReadSymbol() (Symbol, error) {
 }
 
 func (d *MVBDecoder) WaitUntilStartOfFrame() error {
-	for {
-		_, err := d.stream.WaitUntil(HIGH)
-		if err != nil {
-			return err
-		}
-		_, err = d.stream.WaitUntil(LOW)
-		if err != nil {
-			return err
-		}
-		v, err := d.stream.WaitUntilElapsedOrEdge(BT2_SAMPLES, LOW)
-		if err != nil {
-			return err
-		}
-		if v {
-			// read_symbol() expects to start from BT / 4
-			_, err = d.stream.WaitUntilElapsed(BT4_SAMPLES)
-			return err
-		}
+	_, err := d.stream.WaitUntil(HIGH)
+	if err != nil {
+		return err
 	}
+	_, err = d.stream.WaitUntil(LOW)
+	if err != nil {
+		return err
+	}
+	d.stream.Annotate("S")
+	v, err := d.stream.WaitUntilElapsedOrEdge(BT34_SAMPLES, LOW)
+	if err != nil {
+		return err
+	}
+	if !v {
+		return errors.New("invalid start of frame")
+	}
+	// read_symbol() expects to start from BT / 4
+	_, err = d.stream.WaitUntilElapsed(BT4_SAMPLES)
+	return err
 }
 
 func (d *MVBDecoder) ReadSymbolExpect(e Symbol) error {
@@ -297,8 +316,9 @@ func (d *MVBDecoder) ReadSymbolExpect(e Symbol) error {
 		return err
 	}
 	if s != e {
-		return fmt.Errorf("expected symbol %d, got %d", e, s)
+		return fmt.Errorf("expected symbol %s, got %s", e, s)
 	}
+	d.stream.Annotate(s.String())
 	return nil
 }
 
@@ -313,7 +333,7 @@ func (d *MVBDecoder) ReadBit() (byte, error) {
 	case BIT_1:
 		return 1, nil
 	}
-	return 0, fmt.Errorf("expected bit, got %d", s)
+	return 0, fmt.Errorf("expected bit, got %s", s)
 }
 
 func (d *MVBDecoder) ReadByte() (byte, error) {
@@ -354,7 +374,7 @@ func (d *MVBDecoder) ReadStartDelimiter() (isMaster bool, err error) {
 		isMaster = false
 		startDelimiter = slaveStartDelimiter
 	default:
-		return false, fmt.Errorf("invalid start delimiter: %d", s)
+		return false, fmt.Errorf("invalid start delimiter: %s", s)
 	}
 	for i := 1; i < len(startDelimiter); i++ {
 		err = d.ReadSymbolExpect(startDelimiter[i])
@@ -490,6 +510,6 @@ func (d *MVBDecoder) Loop(events chan<- Event) {
 		continue
 
 	onError:
-		events <- Error{error: err, n: d.stream.N()}
+		events <- Error{error: err, n: d.stream.N(), samples: d.stream.GetSamples()}
 	}
 }
