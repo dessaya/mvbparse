@@ -65,7 +65,9 @@ func NewDashboard(n func() uint64) *Dashboard {
 
 var (
 	defStyle = tcell.StyleDefault.Background(tcell.ColorReset).Foreground(tcell.ColorWhite)
+	invStyle = defStyle.Reverse(true)
 	errStyle = tcell.StyleDefault.Background(tcell.ColorReset).Foreground(tcell.ColorRed)
+	capStyle = errStyle.Background(tcell.ColorWhite).Reverse(true).Bold(true)
 )
 
 func (d *Dashboard) init() {
@@ -89,8 +91,6 @@ func (d *Dashboard) quit() {
 	os.Exit(0)
 }
 
-const screenWidth = 80
-
 func (d *Dashboard) render() {
 	s := d.screen
 	s.Clear()
@@ -105,33 +105,40 @@ func (d *Dashboard) render() {
 
 func (d *Dashboard) showPort(y int, port uint16) {
 	v := d.stats.Vars[port]
-	drawTextLine(d.screen, 1, y, screenWidth, defStyle, fmt.Sprintf("port %03x = %s", port, hex.EncodeToString(v)))
+	drawText(d.screen, 0, y, defStyle, fmt.Sprintf("port %03x = %s", port, hex.EncodeToString(v)))
+}
+
+func (d *Dashboard) renderHeader(style tcell.Style, s string) {
+	drawText(d.screen, 0, 0, style, fmt.Sprintf("%-80s", s))
 }
 
 func (d *Dashboard) renderMain() {
 	s := d.screen
-	y := 0
-	drawTextLine(s, 1, y, screenWidth, defStyle, fmt.Sprintf("Total: %d telegrams", d.stats.Total))
-	drawTextLine(s, 40, y, screenWidth, defStyle, fmt.Sprintf("%.3fs", sampleTimestamp(d.n()).Seconds()))
+
+	d.renderHeader(invStyle, "MVB [space: capture] [/: port filter] [p: pause] [q: quit]")
+	y := 1
+
+	drawText(s, 0, y, defStyle, fmt.Sprintf("Total: %d telegrams", d.stats.Total))
+	drawText(s, 40, y, defStyle, fmt.Sprintf("%.3fs", sampleTimestamp(d.n()).Seconds()))
 	y++
 
-	drawHLine(s, y, screenWidth, defStyle)
+	drawHLine(s, y, defStyle)
 	y++
 
 	rate := d.stats.Rate()
-	drawTextLine(s, 1, y, screenWidth, defStyle, fmt.Sprintf(
+	drawText(s, 0, y, defStyle, fmt.Sprintf(
 		"%s %6d telegrams/s",
 		spark(rate),
 		rate[len(rate)-1],
 	))
 	y++
 
-	drawHLine(s, y, screenWidth, defStyle)
+	drawHLine(s, y, defStyle)
 	y++
 
 	for i := range d.stats.mrRates {
 		rate := d.stats.MRRate(MasterRequest(i))
-		drawTextLine(s, 1, y, screenWidth, defStyle, fmt.Sprintf(
+		drawText(s, 0, y, defStyle, fmt.Sprintf(
 			"%s %6d telegrams/s %s",
 			spark(rate),
 			rate[len(rate)-1],
@@ -140,7 +147,7 @@ func (d *Dashboard) renderMain() {
 		y++
 	}
 
-	drawHLine(s, y, screenWidth, defStyle)
+	drawHLine(s, y, defStyle)
 	y++
 
 	if d.portFilter != nil {
@@ -153,11 +160,11 @@ func (d *Dashboard) renderMain() {
 		}
 	}
 
-	drawHLine(s, y, screenWidth, defStyle)
+	drawHLine(s, y, defStyle)
 	y++
 
 	errorRate := d.stats.ErrorRate()
-	drawTextLine(s, 1, y, screenWidth, errStyle, fmt.Sprintf(
+	drawText(s, 0, y, errStyle, fmt.Sprintf(
 		"%s %6d errors/s",
 		spark(errorRate),
 		errorRate[len(errorRate)-1],
@@ -166,7 +173,7 @@ func (d *Dashboard) renderMain() {
 
 	for i := 0; i < len(d.stats.ErrorLog); i++ {
 		err := d.stats.ErrorLog[i]
-		drawTextLine(s, 1, y, screenWidth, errStyle, fmt.Sprintf(
+		drawText(s, 0, y, errStyle, fmt.Sprintf(
 			"[%s] %s",
 			sampleTimestamp(err.N()),
 			err.Error(),
@@ -174,10 +181,7 @@ func (d *Dashboard) renderMain() {
 		y++
 		if annotate {
 			trace := traceSamples(err.samples)
-			drawTextLine(s, 1, y, len(trace)+1, errStyle, fmt.Sprintf(
-				"%s",
-				trace,
-			))
+			drawText(s, 0, y, errStyle, fmt.Sprintf("%s", trace))
 			y++
 		}
 	}
@@ -195,16 +199,29 @@ func (d *Dashboard) renderCapture(c *Capture) {
 }
 
 func (d *Dashboard) renderCaptureTelegrams(c *Capture) {
-	y := -d.captureOffset
+	if c.Stopped {
+		d.renderHeader(invStyle, "CAPTURE (stopped) [m: show vars] [esc: back]")
+	} else {
+		d.renderHeader(capStyle, "CAPTURE (running) [space: stop]")
+	}
+
+	y := 1 - d.captureOffset
 	for _, t := range c.Telegrams {
-		s := t.String()
-		drawTextLine(d.screen, 1, y, len(s)+1, defStyle, s)
+		if y > 0 {
+			drawText(d.screen, 0, y, defStyle, t.String())
+		}
 		y++
 	}
 }
 
 func (d *Dashboard) renderCaptureVars(c *Capture) {
-	y := -d.captureOffset
+	if c.Stopped {
+		d.renderHeader(invStyle, "CAPTURE (stopped) [m: show telegrams] [/: port filter] [esc: back]")
+	} else {
+		d.renderHeader(capStyle, "CAPTURE (running) [space: stop]")
+	}
+
+	y := 1 - d.captureOffset
 	if d.portFilter != nil {
 		d.renderPortCapture(y, d.portFilter.port())
 	} else {
@@ -215,14 +232,18 @@ func (d *Dashboard) renderCaptureVars(c *Capture) {
 }
 
 func (d *Dashboard) renderPortCapture(y int, port uint16) int {
-	drawTextLine(d.screen, 1, y, screenWidth, defStyle, fmt.Sprintf("port %03x", port))
+	if y > 0 {
+		drawText(d.screen, 0, y, defStyle, fmt.Sprintf("port %03x", port))
+	}
 	y++
 	for _, change := range d.stats.Capture.Vars[port] {
-		drawTextLine(d.screen, 1, y, screenWidth, defStyle, fmt.Sprintf(
-			"  [%s] %x",
-			sampleTimestamp(change.N),
-			hex.EncodeToString(change.Value),
-		))
+		if y > 0 {
+			drawText(d.screen, 0, y, defStyle, fmt.Sprintf(
+				"  [%s] %x",
+				sampleTimestamp(change.N),
+				hex.EncodeToString(change.Value),
+			))
+		}
 		y++
 	}
 	return y

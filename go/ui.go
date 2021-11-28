@@ -6,11 +6,11 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
-func drawHLine(s tcell.Screen, y int, w int, style tcell.Style) {
-	drawTextLine(s, 1, y, w, style, strings.Repeat(string(tcell.RuneHLine), w))
+func drawHLine(s tcell.Screen, y int, style tcell.Style) {
+	drawText(s, 0, y, style, strings.Repeat(string(tcell.RuneHLine), 80))
 }
 
-func drawText(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string) {
+func drawTextBox(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string) {
 	row := y1
 	col := x1
 	for _, r := range []rune(text) {
@@ -26,8 +26,8 @@ func drawText(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string
 	}
 }
 
-func drawTextLine(s tcell.Screen, x, y, w int, style tcell.Style, text string) {
-	drawText(s, x, y, w, y, style, text)
+func drawText(s tcell.Screen, x, y int, style tcell.Style, text string) {
+	drawTextBox(s, x, y, x+len(text)+1, y, style, text)
 }
 
 func drawBox(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string) {
@@ -63,5 +63,5 @@ func drawBox(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string)
 		s.SetContent(x2, y2, tcell.RuneLRCorner, nil, style)
 	}
 
-	drawText(s, x1+1, y1+1, x2-1, y2-1, style, text)
+	drawTextBox(s, x1+1, y1+1, x2-1, y2-1, style, text)
 }
