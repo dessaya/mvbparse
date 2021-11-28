@@ -278,22 +278,28 @@ func (d *Dashboard) Loop(mvbEvents chan Event) {
 				case ev.Rune() == 'm' || ev.Rune() == 'M':
 					d.captureMode = !d.captureMode
 					d.captureOffset = 0
+					dirty = true
 				case ev.Rune() == 'p' || ev.Rune() == 'P':
 					d.paused = !d.paused
+					dirty = true
 				case ev.Rune() == ' ':
 					d.stats.StartStopCapture()
 					d.captureOffset = 0
+					dirty = true
 				case ev.Key() == tcell.KeyESC:
 					if d.portFilter != nil {
 						d.portFilter = nil
 					} else {
 						d.stats.DiscardCapture()
 					}
+					dirty = true
 				case ev.Key() == tcell.KeyCtrlL:
 					d.screen.Sync()
 				case d.tryScroll(ev):
+					dirty = true
 				case d.tryPortFilter(ev):
 					d.captureOffset = 0
+					dirty = true
 				}
 			}
 
