@@ -44,12 +44,14 @@ type Dashboard struct {
 	captureOffset int
 	portFilter    *portFilter
 	paused        bool
+	n             func() uint64
 }
 
-func NewDashboard() *Dashboard {
+func NewDashboard(n func() uint64) *Dashboard {
 	return &Dashboard{
 		stats: NewStats(),
 		port:  uint16(initialPort),
+		n:     n,
 	}
 }
 
@@ -102,6 +104,7 @@ func (d *Dashboard) renderMain() {
 	s := d.screen
 	y := 0
 	drawTextLine(s, 1, y, screenWidth, defStyle, fmt.Sprintf("Total: %d telegrams", d.stats.Total))
+	drawTextLine(s, 40, y, screenWidth, defStyle, fmt.Sprintf("%.3fs", sampleTimestamp(d.n()).Seconds()))
 	y++
 
 	drawHLine(s, y, screenWidth, defStyle)

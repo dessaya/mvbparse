@@ -258,6 +258,10 @@ func NewDecoder(stream *MVBStream) *MVBDecoder {
 	}
 }
 
+func (d *MVBDecoder) N() uint64 {
+	return d.stream.r.n
+}
+
 func (d *MVBDecoder) ReadSymbol() (Symbol, error) {
 	v1 := d.stream.V()
 	// now we are at BT / 4; wait until BT * 3 / 4

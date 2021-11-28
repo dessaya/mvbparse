@@ -48,6 +48,7 @@ func main() {
 	mvb.InitFlags()
 
 	events := make(chan mvb.Event)
-	go mvb.NewDecoder(mvb.NewMVBStream()).Loop(events)
-	mvb.NewDashboard().Loop(events)
+	decoder := mvb.NewDecoder(mvb.NewMVBStream())
+	go decoder.Loop(events)
+	mvb.NewDashboard(decoder.N).Loop(events)
 }
