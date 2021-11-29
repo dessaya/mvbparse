@@ -1,6 +1,9 @@
 package mvb
 
-import "sort"
+import (
+	"bytes"
+	"sort"
+)
 
 const (
 	sparkSize    = 10
@@ -148,5 +151,7 @@ func (c *Capture) SetVar(n uint64, port uint16, value []byte) {
 		c.SeenPorts[i] = int(port)
 	}
 
-	c.Vars[port] = append(c.Vars[port], VarChange{N: n, Value: value})
+	if len(c.Vars[port]) == 0 || !bytes.Equal(c.Vars[port][len(c.Vars[port])-1].Value, value) {
+		c.Vars[port] = append(c.Vars[port], VarChange{N: n, Value: value})
+	}
 }

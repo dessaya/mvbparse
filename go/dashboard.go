@@ -92,6 +92,9 @@ func (d *Dashboard) quit() {
 }
 
 func (d *Dashboard) render() {
+	if d.paused {
+		return
+	}
 	s := d.screen
 	s.Clear()
 	switch {
@@ -175,8 +178,8 @@ func (d *Dashboard) renderMain() {
 	for i := 0; i < len(d.stats.ErrorLog); i++ {
 		err := d.stats.ErrorLog[i]
 		drawText(s, 0, y, errStyle, fmt.Sprintf(
-			"[%s] %s",
-			sampleTimestamp(err.N()),
+			"[%.3fs] %s",
+			sampleTimestamp(err.N()).Seconds(),
 			err.Error(),
 		))
 		y++
@@ -240,8 +243,8 @@ func (d *Dashboard) renderPortCapture(y int, port uint16) int {
 	for _, change := range d.stats.Capture.Vars[port] {
 		if y > 0 {
 			drawText(d.screen, 0, y, defStyle, fmt.Sprintf(
-				"  [%s] %x",
-				sampleTimestamp(change.N),
+				"  [%.3fs] %s",
+				sampleTimestamp(change.N).Seconds(),
 				hex.EncodeToString(change.Value),
 			))
 		}
@@ -281,8 +284,9 @@ func (d *Dashboard) Loop(mvbEvents chan Event) {
 	for {
 		select {
 		case <-renderTicker:
-			if !d.paused && dirty {
+			if dirty {
 				d.render()
+				dirty = false
 			}
 
 		case <-secondsTicker:
@@ -300,30 +304,25 @@ func (d *Dashboard) Loop(mvbEvents chan Event) {
 				case ev.Rune() == 'm' || ev.Rune() == 'M':
 					d.captureMode = !d.captureMode
 					d.captureOffset = 0
-					dirty = true
 				case ev.Rune() == 'p' || ev.Rune() == 'P':
 					d.paused = !d.paused
-					dirty = true
 				case ev.Rune() == ' ':
 					d.stats.StartStopCapture()
 					d.captureOffset = 0
-					dirty = true
 				case ev.Key() == tcell.KeyESC:
 					if d.portFilter != nil {
 						d.portFilter = nil
 					} else {
 						d.stats.DiscardCapture()
 					}
-					dirty = true
 				case ev.Key() == tcell.KeyCtrlL:
 					d.screen.Sync()
 				case d.tryScroll(ev):
-					dirty = true
 				case d.tryPortFilter(ev):
 					d.captureOffset = 0
-					dirty = true
 				}
 			}
+			d.render()
 
 		case ev := <-mvbEvents:
 			switch ev := ev.(type) {
