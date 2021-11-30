@@ -202,6 +202,11 @@ func (d *Dashboard) renderCapture(c *Capture) {
 	}
 }
 
+func (d *Dashboard) scrollCaptureTelegramsEnd(c *Capture) {
+	_, h := d.screen.Size()
+	d.captureOffset = addCaptureOffset(0, len(c.Telegrams)-h+1)
+}
+
 func (d *Dashboard) renderCaptureTelegrams(c *Capture) {
 	if c.Stopped {
 		d.renderHeader(invStyle, "CAPTURE (stopped) [m: show vars] [esc: back]")
@@ -209,12 +214,17 @@ func (d *Dashboard) renderCaptureTelegrams(c *Capture) {
 		d.renderHeader(capStyle, "CAPTURE (running) [space: stop]")
 	}
 
-	y := 1 - d.captureOffset
-	for _, t := range c.Telegrams {
-		if y > 0 {
-			drawText(d.screen, 0, y, defStyle, t.String())
-		}
+	if d.captureOffset >= len(c.Telegrams) {
+		return
+	}
+	_, h := d.screen.Size()
+	y := 1
+	for _, t := range c.Telegrams[d.captureOffset:] {
+		drawText(d.screen, 0, y, defStyle, t.String())
 		y++
+		if y > h {
+			return
+		}
 	}
 }
 
@@ -225,18 +235,19 @@ func (d *Dashboard) renderCaptureVars(c *Capture) {
 		d.renderHeader(capStyle, "CAPTURE (running) [space: stop]")
 	}
 
+	_, h := d.screen.Size()
 	y := 1 - d.captureOffset
 	if d.portFilter != nil {
-		d.renderPortCapture(y, d.portFilter.port())
+		d.renderPortCapture(y, h, d.portFilter.port())
 	} else {
 		for _, port := range c.SeenPorts {
-			y = d.renderPortCapture(y, uint16(port))
+			y = d.renderPortCapture(y, h, uint16(port))
 		}
 	}
 }
 
-func (d *Dashboard) renderPortCapture(y int, port uint16) int {
-	if y > 0 {
+func (d *Dashboard) renderPortCapture(y int, h int, port uint16) int {
+	if y > 0 && y < h {
 		drawText(d.screen, 0, y, defStyle, fmt.Sprintf("port %03x", port))
 	}
 	y++
@@ -249,6 +260,9 @@ func (d *Dashboard) renderPortCapture(y int, port uint16) int {
 			))
 		}
 		y++
+		if y > h {
+			return y
+		}
 	}
 	return y
 }
@@ -308,7 +322,9 @@ func (d *Dashboard) Loop(mvbEvents chan Event) {
 					d.paused = !d.paused
 				case ev.Rune() == ' ':
 					d.stats.StartStopCapture()
-					d.captureOffset = 0
+					if d.stats.Capture != nil && !d.stats.Capture.Stopped {
+						d.captureOffset = 0
+					}
 				case ev.Key() == tcell.KeyESC:
 					if d.portFilter != nil {
 						d.portFilter = nil
@@ -328,6 +344,10 @@ func (d *Dashboard) Loop(mvbEvents chan Event) {
 			switch ev := ev.(type) {
 			case *Telegram:
 				d.stats.CountTelegram(ev)
+				c := d.stats.Capture
+				if c != nil && !c.Stopped && d.captureMode == CaptureModeTelegrams {
+					d.scrollCaptureTelegramsEnd(c)
+				}
 			case Error:
 				d.stats.CountError(ev)
 			}
@@ -381,6 +401,10 @@ func (d *Dashboard) tryScrollCapture(ev *tcell.EventKey) bool {
 		d.captureOffset = addCaptureOffset(d.captureOffset, -1)
 	case ev.Key() == tcell.KeyHome:
 		d.captureOffset = 0
+	case ev.Key() == tcell.KeyEnd:
+		if d.captureMode == CaptureModeTelegrams {
+			d.scrollCaptureTelegramsEnd(d.stats.Capture)
+		}
 	default:
 		return false
 	}
