@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"mvb"
 	"os"
@@ -47,8 +48,13 @@ func main() {
 
 	mvb.InitFlags()
 
+	ports, err := mvb.ParseRecorderPortSpecs(flag.CommandLine.Args())
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	events := make(chan mvb.Event)
 	decoder := mvb.NewDecoder(mvb.NewMVBStream())
 	go decoder.Loop(events)
-	mvb.NewDashboard(decoder.N).Loop(events)
+	mvb.NewDashboard(decoder.N, ports).Loop(events)
 }

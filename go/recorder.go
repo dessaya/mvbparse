@@ -2,10 +2,14 @@ package mvb
 
 import (
 	"bytes"
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -13,13 +17,20 @@ type RecorderPortSpec struct {
 	Port uint16
 	I    int
 	J    int
+	Desc string
 }
 
 func (s *RecorderPortSpec) String() string {
 	if s.I == -1 {
-		return fmt.Sprintf("%03x", s.Port)
+		return fmt.Sprintf("%03x-%s", s.Port, slug(s.Desc))
 	}
-	return fmt.Sprintf("%03x:%d:%d", s.Port, s.I, s.J)
+	return fmt.Sprintf("%03x-%d-%d-%s", s.Port, s.I, s.J, slug(s.Desc))
+}
+
+func slug(s string) string {
+	s = strings.Trim(s, " ")
+	s = strings.ReplaceAll(s, " ", "-")
+	return s
 }
 
 type Recorder struct {
@@ -66,6 +77,10 @@ func (r *Recorder) Loop(mvbEvents chan Event) {
 			done = true
 		}
 	}
+
+	for _, p := range r.ports {
+		p.close()
+	}
 }
 
 type portRecorder struct {
@@ -93,6 +108,8 @@ func (r *portRecorder) write(t time.Time, value []byte) {
 	}
 }
 
+const baseDir = "csv"
+
 func (r *portRecorder) rotate(fp *os.File, date string) *os.File {
 	if fp != nil {
 		if err := fp.Close(); err != nil {
@@ -100,8 +117,14 @@ func (r *portRecorder) rotate(fp *os.File, date string) *os.File {
 		}
 	}
 
-	fp, err := os.OpenFile(
-		fmt.Sprintf("mvb-%s-%s.csv", &r.RecorderPortSpec, date),
+	dir := baseDir + "/" + date
+	err := os.MkdirAll(dir, os.ModePerm)
+	if err != nil {
+		panic(err)
+	}
+
+	fp, err = os.OpenFile(
+		fmt.Sprintf("%s/%s.csv", dir, &r.RecorderPortSpec),
 		os.O_APPEND|os.O_WRONLY|os.O_CREATE,
 		0666,
 	)
@@ -109,6 +132,12 @@ func (r *portRecorder) rotate(fp *os.File, date string) *os.File {
 		panic(err)
 	}
 	return fp
+}
+
+func (r *portRecorder) close() {
+	if err := r.fp.Close(); err != nil {
+		panic(err)
+	}
 }
 
 func slice(v []byte, i, j int) []byte {
@@ -122,4 +151,59 @@ func slice(v []byte, i, j int) []byte {
 		j = len(v)
 	}
 	return v[i:j]
+}
+
+var portSpecError = fmt.Errorf("invalid recorder port spec")
+
+func ParseRecorderPortSpecs(args []string) ([]RecorderPortSpec, error) {
+	if len(args)%2 != 0 {
+		return nil, portSpecError
+	}
+
+	var ports []RecorderPortSpec
+
+	for i := 0; i < len(args); i += 2 {
+		arg, desc := args[i], args[i+1]
+		parts := strings.Split(arg, ":")
+		if len(parts) != 1 && len(parts) != 3 {
+			return nil, portSpecError
+		}
+
+		i, j := -1, -1
+		if len(parts) == 3 {
+			var err error
+			i, err = strconv.Atoi(parts[1])
+			if err != nil {
+				return nil, portSpecError
+			}
+			j, err = strconv.Atoi(parts[2])
+			if err != nil {
+				return nil, portSpecError
+			}
+		}
+
+		portHex := parts[0]
+		if strings.HasPrefix(portHex, "0x") {
+			portHex = portHex[2:]
+		}
+		if len(portHex)%2 != 0 {
+			portHex = "0" + portHex
+		}
+		b, err := hex.DecodeString(portHex)
+		if err != nil {
+			return nil, portSpecError
+		}
+		if len(b) > 2 {
+			log.Fatalf("port is too high")
+		}
+		port := binary.BigEndian.Uint16(b)
+
+		ports = append(ports, RecorderPortSpec{
+			Port: port,
+			I:    i,
+			J:    j,
+			Desc: desc,
+		})
+	}
+	return ports, nil
 }

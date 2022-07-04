@@ -53,13 +53,15 @@ type Dashboard struct {
 	portFilter    *portFilter
 	paused        bool
 	n             func() uint64
+	watchedPorts  []RecorderPortSpec
 }
 
-func NewDashboard(n func() uint64) *Dashboard {
+func NewDashboard(n func() uint64, watchedPorts []RecorderPortSpec) *Dashboard {
 	return &Dashboard{
-		stats: NewStats(),
-		port:  uint16(initialPort),
-		n:     n,
+		stats:        NewStats(),
+		port:         uint16(initialPort),
+		n:            n,
+		watchedPorts: watchedPorts,
 	}
 }
 
@@ -154,6 +156,11 @@ func (d *Dashboard) renderMain() {
 	drawHLine(s, y, defStyle)
 	y++
 
+	y = d.renderWatchedPorts(y)
+
+	drawHLine(s, y, defStyle)
+	y++
+
 	if d.portFilter != nil {
 		d.showPort(y, d.portFilter.port())
 		y++
@@ -191,6 +198,15 @@ func (d *Dashboard) renderMain() {
 	}
 
 	s.Show()
+}
+
+func (d *Dashboard) renderWatchedPorts(y int) int {
+	s := d.screen
+	for _, w := range d.watchedPorts {
+		drawText(s, 0, y, defStyle, fmt.Sprintf("%s: %x", w.Desc, slice(d.stats.Vars[w.Port], w.I, w.J)))
+		y++
+	}
+	return y
 }
 
 func (d *Dashboard) renderCapture(c *Capture) {
