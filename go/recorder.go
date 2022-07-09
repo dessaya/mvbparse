@@ -103,7 +103,11 @@ func (r *portRecorder) write(t time.Time, value []byte) {
 	}
 	r.lastSeen = value
 
-	if _, err := r.fp.Write([]byte(fmt.Sprintf("%s,%x\n", t.Format("15:04:05.000"), value))); err != nil {
+	ts := t.Format("15:04:05.000")
+	if VerboseFlag {
+		log.Printf("%s %32s %x\n", ts, &r.RecorderPortSpec, value)
+	}
+	if _, err := r.fp.Write([]byte(fmt.Sprintf("%s,%x\n", ts, value))); err != nil {
 		panic(err)
 	}
 }

@@ -45,15 +45,16 @@ const (
 )
 
 type Dashboard struct {
-	screen        tcell.Screen
-	stats         Stats
-	port          uint16
-	captureMode   CaptureMode
-	captureOffset int
-	portFilter    *portFilter
-	paused        bool
-	n             func() uint64
-	watchedPorts  []RecorderPortSpec
+	screen             tcell.Screen
+	stats              Stats
+	port               uint16
+	captureMode        CaptureMode
+	captureOffset      int
+	portFilter         *portFilter
+	paused             bool
+	n                  func() uint64
+	watchedPorts       []RecorderPortSpec
+	watchedPortsOffset int
 }
 
 func NewDashboard(n func() uint64, watchedPorts []RecorderPortSpec) *Dashboard {
@@ -142,33 +143,32 @@ func (d *Dashboard) renderMain() {
 	drawHLine(s, y, defStyle)
 	y++
 
-	for i := range d.stats.mrRates {
-		rate := d.stats.MRRate(MasterRequest(i))
-		drawText(s, 0, y, defStyle, fmt.Sprintf(
-			"%s %6d telegrams/s %s",
-			spark(rate),
-			rate[len(rate)-1],
-			MasterRequest(i),
-		))
-		y++
-	}
-
-	drawHLine(s, y, defStyle)
-	y++
-
-	y = d.renderWatchedPorts(y)
-
-	drawHLine(s, y, defStyle)
-	y++
-
-	if d.portFilter != nil {
-		d.showPort(y, d.portFilter.port())
-		y++
-	} else {
-		for port := d.port; port < d.port+portPageSize; port++ {
-			d.showPort(y, port)
+	if len(d.watchedPorts) == 0 {
+		for i := range d.stats.mrRates {
+			rate := d.stats.MRRate(MasterRequest(i))
+			drawText(s, 0, y, defStyle, fmt.Sprintf(
+				"%s %6d telegrams/s %s",
+				spark(rate),
+				rate[len(rate)-1],
+				MasterRequest(i),
+			))
 			y++
 		}
+
+		drawHLine(s, y, defStyle)
+		y++
+
+		if d.portFilter != nil {
+			d.showPort(y, d.portFilter.port())
+			y++
+		} else {
+			for port := d.port; port < d.port+portPageSize; port++ {
+				d.showPort(y, port)
+				y++
+			}
+		}
+	} else {
+		y = d.renderWatchedPorts(y)
 	}
 
 	drawHLine(s, y, defStyle)
@@ -202,8 +202,8 @@ func (d *Dashboard) renderMain() {
 
 func (d *Dashboard) renderWatchedPorts(y int) int {
 	s := d.screen
-	for _, w := range d.watchedPorts {
-		drawText(s, 0, y, defStyle, fmt.Sprintf("%s: %x", w.Desc, slice(d.stats.Vars[w.Port], w.I, w.J)))
+	for _, w := range d.watchedPorts[d.watchedPortsOffset:] {
+		drawText(s, 0, y, defStyle, fmt.Sprintf("%32s %x", w.Desc, slice(d.stats.Vars[w.Port], w.I, w.J)))
 		y++
 	}
 	return y
@@ -293,6 +293,16 @@ func addPortOffset(port uint16, d int) uint16 {
 	return port + uint16(d)
 }
 
+func addWatchedPortOffset(o int, d int, max int) int {
+	if o+d < 0 {
+		return 0
+	}
+	if o+d > max {
+		return max
+	}
+	return o + d
+}
+
 func addCaptureOffset(o int, d int) int {
 	if o+d < 0 {
 		return 0
@@ -376,6 +386,8 @@ func (d *Dashboard) tryScroll(ev *tcell.EventKey) bool {
 	switch {
 	case d.stats.Capture != nil:
 		return d.tryScrollCapture(ev)
+	case len(d.watchedPorts) != 0:
+		return d.tryScrollWatchedPorts(ev)
 	default:
 		return d.tryScrollPort(ev)
 	}
@@ -399,6 +411,26 @@ func (d *Dashboard) tryScrollPort(ev *tcell.EventKey) bool {
 		d.port = 0
 	case ev.Key() == tcell.KeyEnd:
 		d.port = maxPort
+	default:
+		return false
+	}
+	return true
+}
+
+func (d *Dashboard) tryScrollWatchedPorts(ev *tcell.EventKey) bool {
+	switch {
+	case ev.Key() == tcell.KeyPgDn:
+		d.watchedPortsOffset = addWatchedPortOffset(d.watchedPortsOffset, portPageSize, len(d.watchedPorts)-1)
+	case ev.Key() == tcell.KeyPgUp:
+		d.watchedPortsOffset = addWatchedPortOffset(d.watchedPortsOffset, -portPageSize, len(d.watchedPorts)-1)
+	case ev.Key() == tcell.KeyDown:
+		d.watchedPortsOffset = addWatchedPortOffset(d.watchedPortsOffset, 1, len(d.watchedPorts)-1)
+	case ev.Key() == tcell.KeyUp:
+		d.watchedPortsOffset = addWatchedPortOffset(d.watchedPortsOffset, -1, len(d.watchedPorts)-1)
+	case ev.Key() == tcell.KeyHome:
+		d.watchedPortsOffset = 0
+	case ev.Key() == tcell.KeyEnd:
+		d.watchedPortsOffset = len(d.watchedPorts) - 1
 	default:
 		return false
 	}

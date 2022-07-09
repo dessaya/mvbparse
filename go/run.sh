@@ -72,4 +72,4 @@ vars=(
     006:26:28 "carga TC2"
 )
 
-exec go run record/main.go -high=02 -low=00 "${vars[@]}" </tmp/fifo
+exec go run record/main.go -v -high=02 -low=00 "${vars[@]}" </tmp/fifo
