@@ -10,7 +10,7 @@ typedef struct sendbuf {
     uint8_t bits;
 } sendbuf_t;
 
-sendbuf_t *next_frame();
+sendbuf_t *next_telegram();
 
 void sendbuf_reset();
 

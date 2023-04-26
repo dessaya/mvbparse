@@ -31,7 +31,7 @@ int main(void)
 	while (1) {
 		//while (!uartReadByte( UART_USB, &receivedByte ));
         delayInaccurateUs(750);
-        sendbuf_t *buf = next_frame();
+        sendbuf_t *buf = next_telegram();
         spiWrite(SPI0, buf->data, buf->bytes);
 	}
 }
