@@ -83,7 +83,7 @@ static void sendbuf_add_bit(uint8_t v) {
     }
 }
 
-static void send_n(int amount, uint8_t v) {
+static void send_idle(int amount, uint8_t v) {
     for (int i = 0; i < amount; i++) {
         sendbuf_add_bit(v);
     }
@@ -191,7 +191,7 @@ sendbuf_t *next_telegram() {
     sendbuf_reset();
 
     send_master(mvb_data[i].master);
-    send_n(15, 1);
+    send_idle(15, 1);
     send_slave(mvb_data[i].slave, mvb_data[i].slave_len);
 
     i++;
