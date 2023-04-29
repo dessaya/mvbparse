@@ -1,4 +1,4 @@
-# Software para decodificación de tramas red TCN
+# Software para captura en tiempo real de tramas MVB
 
 Este software permite capturar el tráfico de la red MVB en tiempo real, con el
 objetivo de:

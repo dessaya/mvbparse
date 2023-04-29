@@ -7,8 +7,8 @@
 SAMPLE_RATE = 12000000
 
 # Cómo se representa en la entrada los valores alto y bajo de la señal
-SIGNAL_HIGH = 0xff
-SIGNAL_LOW = 0xfe
+SIGNAL_HIGH = 0x02
+SIGNAL_LOW = 0x00
 
 from dataclasses import dataclass
 from enum import Enum, unique
